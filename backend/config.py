@@ -15,3 +15,13 @@ class Config:
     SECURITY_PASSWORD_SALT = 'super-secret-salt'
     SECURITY_REGISTERABLE = True
     SECURITY_SEND_REGISTER_EMAIL = False
+    
+    # Redis Caching - Milestone 7
+    CACHE_TYPE = 'SimpleCache'  # Fallback to SimpleCache if Redis not available
+    CACHE_DEFAULT_TIMEOUT = 300  # 5 minutes
+    
+    # Redis configuration (will use if Redis is available)
+    CACHE_REDIS_HOST = 'localhost'
+    CACHE_REDIS_PORT = 6379
+    CACHE_REDIS_DB = 0
+    CACHE_REDIS_URL = 'redis://localhost:6379/0'

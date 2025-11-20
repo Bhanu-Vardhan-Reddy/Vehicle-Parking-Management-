@@ -1,6 +1,7 @@
 """
 API Routes for Vehicle Parking System
 Milestone 2: Authentication & RBAC (Role-Based Access Control)
+Milestone 7: Redis Caching
 """
 from flask import Blueprint, request, jsonify
 from flask_security import hash_password
@@ -16,6 +17,14 @@ api_bp = Blueprint('api', __name__)
 
 # Secret key for JWT
 SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+
+# Cache will be imported from app
+cache = None
+
+def init_cache(cache_instance):
+    """Initialize cache for routes"""
+    global cache
+    cache = cache_instance
 
 # ==========================================
 # JWT Helper Functions
@@ -241,11 +250,17 @@ def test_admin(current_user):
 @api_bp.route('/api/lots', methods=['GET'])
 @token_required
 def get_lots(current_user):
-    """Get all parking lots"""
+    """Get all parking lots (Cached: 5 min)"""
     from models import ParkingLot
     
+    # Try to get from cache
+    cached_data = cache.get('all_lots') if cache else None
+    if cached_data:
+        return jsonify(cached_data), 200
+    
+    # If not in cache, fetch from database
     lots = ParkingLot.query.all()
-    return jsonify({
+    result = {
         'lots': [{
             'id': lot.id,
             'name': lot.name,
@@ -254,7 +269,13 @@ def get_lots(current_user):
             'available_spots': sum(1 for spot in lot.spots if spot.status == 'Available'),
             'occupied_spots': sum(1 for spot in lot.spots if spot.status == 'Occupied')
         } for lot in lots]
-    }), 200
+    }
+    
+    # Cache for 5 minutes
+    if cache:
+        cache.set('all_lots', result, timeout=300)
+    
+    return jsonify(result), 200
 
 @api_bp.route('/api/lots', methods=['POST'])
 @token_required
@@ -300,6 +321,10 @@ def create_lot(current_user):
     
     db.session.commit()
     
+    # Invalidate cache
+    if cache:
+        cache.delete('all_lots')
+    
     return jsonify({
         'message': 'Parking lot created successfully',
         'lot': {
@@ -332,13 +357,24 @@ def delete_lot(current_user, lot_id):
     db.session.delete(lot)
     db.session.commit()
     
+    # Invalidate cache
+    if cache:
+        cache.delete('all_lots')
+        cache.delete(f'spots_lot_{lot_id}')
+    
     return jsonify({'message': 'Parking lot deleted successfully'}), 200
 
 @api_bp.route('/api/spots/<int:lot_id>', methods=['GET'])
 @token_required
 def get_spots(current_user, lot_id):
-    """Get all parking spots for a specific lot with reservation info"""
+    """Get all parking spots for a specific lot with reservation info (Cached: 1 min)"""
     from models import ParkingLot, ParkingSpot, Booking
+    
+    # Try to get from cache
+    cache_key = f'spots_lot_{lot_id}'
+    cached_data = cache.get(cache_key) if cache else None
+    if cached_data:
+        return jsonify(cached_data), 200
     
     lot = ParkingLot.query.get(lot_id)
     if not lot:
@@ -371,14 +407,20 @@ def get_spots(current_user, lot_id):
         
         result_spots.append(spot_data)
     
-    return jsonify({
+    result = {
         'lot': {
             'id': lot.id,
             'name': lot.name,
             'price_per_hour': lot.price_per_hour
         },
         'spots': result_spots
-    }), 200
+    }
+    
+    # Cache for 1 minute
+    if cache:
+        cache.set(cache_key, result, timeout=60)
+    
+    return jsonify(result), 200
 
 @api_bp.route('/api/users', methods=['GET'])
 @token_required
@@ -680,6 +722,11 @@ def book_spot(current_user):
         db.session.add(booking)
         db.session.commit()
         
+        # Invalidate cache
+        if cache:
+            cache.delete('all_lots')
+            cache.delete(f'spots_lot_{lot.id}')
+        
         return jsonify({
             'message': f'Successfully reserved Spot #{target_spot.spot_number}',
             'booking': {
@@ -780,6 +827,11 @@ def release_spot(current_user, booking_id):
     spot.status = 'Available'
     
     db.session.commit()
+    
+    # Invalidate cache
+    if cache:
+        cache.delete('all_lots')
+        cache.delete(f'spots_lot_{lot.id}')
     
     return jsonify({
         'message': 'Spot released successfully',

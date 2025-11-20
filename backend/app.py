@@ -2,13 +2,18 @@
 Flask Application Entry Point
 Milestone 1: Database Models and Admin Seeding
 Milestone 2: Authentication & RBAC
+Milestone 7: Redis Caching
 """
 from flask import Flask
 from flask_cors import CORS
 from flask_security import Security, SQLAlchemyUserDatastore, hash_password
+from flask_caching import Cache
 from config import Config
 from models import db, User, Role
 import os
+
+# Initialize cache
+cache = Cache()
 
 def create_app(config_class=Config):
     """Create and configure Flask application"""
@@ -20,6 +25,16 @@ def create_app(config_class=Config):
     
     # Enable CORS for all routes
     CORS(app)
+    
+    # Initialize caching
+    try:
+        app.config['CACHE_TYPE'] = 'redis'
+        cache.init_app(app)
+        print("✅ Redis caching enabled")
+    except Exception as e:
+        print(f"⚠️  Redis not available, using SimpleCache: {e}")
+        app.config['CACHE_TYPE'] = 'SimpleCache'
+        cache.init_app(app)
     
     # Setup Flask-Security
     user_datastore = SQLAlchemyUserDatastore(db, User, Role)
@@ -54,8 +69,11 @@ def create_app(config_class=Config):
             print('✅ Database already initialized!')
     
     # Register blueprints
-    from routes import api_bp
+    from routes import api_bp, init_cache
     app.register_blueprint(api_bp)
+    
+    # Initialize cache in routes module
+    init_cache(cache)
     
     # Simple test route
     @app.route('/')
