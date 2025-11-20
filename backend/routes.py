@@ -234,3 +234,147 @@ def test_admin(current_user):
         'user_id': current_user.id
     }), 200
 
+# ==========================================
+# Parking Lot Endpoints (Admin) - Milestone 3
+# ==========================================
+
+@api_bp.route('/api/lots', methods=['GET'])
+@token_required
+def get_lots(current_user):
+    """Get all parking lots"""
+    from models import ParkingLot
+    
+    lots = ParkingLot.query.all()
+    return jsonify({
+        'lots': [{
+            'id': lot.id,
+            'name': lot.name,
+            'capacity': lot.capacity,
+            'price_per_hour': lot.price_per_hour,
+            'available_spots': sum(1 for spot in lot.spots if spot.status == 'Available'),
+            'occupied_spots': sum(1 for spot in lot.spots if spot.status == 'Occupied')
+        } for lot in lots]
+    }), 200
+
+@api_bp.route('/api/lots', methods=['POST'])
+@token_required
+@admin_required
+def create_lot(current_user):
+    """Create a new parking lot with auto-generated spots (Admin only)"""
+    from models import ParkingLot, ParkingSpot
+    
+    data = request.get_json()
+    
+    if not data or not data.get('name') or not data.get('capacity') or not data.get('price_per_hour'):
+        return jsonify({'message': 'Name, capacity, and price_per_hour are required', 'error': 'validation_error'}), 400
+    
+    try:
+        capacity = int(data['capacity'])
+        price_per_hour = float(data['price_per_hour'])
+        
+        if capacity < 1:
+            return jsonify({'message': 'Capacity must be at least 1', 'error': 'validation_error'}), 400
+        if price_per_hour < 0:
+            return jsonify({'message': 'Price must be non-negative', 'error': 'validation_error'}), 400
+            
+    except ValueError:
+        return jsonify({'message': 'Invalid capacity or price format', 'error': 'validation_error'}), 400
+    
+    # Create parking lot
+    new_lot = ParkingLot(
+        name=data['name'],
+        capacity=capacity,
+        price_per_hour=price_per_hour
+    )
+    db.session.add(new_lot)
+    db.session.flush()  # Get the lot ID before creating spots
+    
+    # Auto-create parking spots (1 to N)
+    for i in range(1, capacity + 1):
+        spot = ParkingSpot(
+            spot_number=i,
+            status='Available',
+            lot_id=new_lot.id
+        )
+        db.session.add(spot)
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Parking lot created successfully',
+        'lot': {
+            'id': new_lot.id,
+            'name': new_lot.name,
+            'capacity': new_lot.capacity,
+            'price_per_hour': new_lot.price_per_hour
+        }
+    }), 201
+
+@api_bp.route('/api/lots/<int:lot_id>', methods=['DELETE'])
+@token_required
+@admin_required
+def delete_lot(current_user, lot_id):
+    """Delete a parking lot (Admin only, only if all spots are available)"""
+    from models import ParkingLot
+    
+    lot = ParkingLot.query.get(lot_id)
+    if not lot:
+        return jsonify({'message': 'Parking lot not found', 'error': 'not_found'}), 404
+    
+    # Check if any spot is occupied
+    occupied_spots = sum(1 for spot in lot.spots if spot.status == 'Occupied')
+    if occupied_spots > 0:
+        return jsonify({
+            'message': f'Cannot delete lot with {occupied_spots} occupied spot(s)',
+            'error': 'spots_occupied'
+        }), 400
+    
+    db.session.delete(lot)
+    db.session.commit()
+    
+    return jsonify({'message': 'Parking lot deleted successfully'}), 200
+
+@api_bp.route('/api/spots/<int:lot_id>', methods=['GET'])
+@token_required
+def get_spots(current_user, lot_id):
+    """Get all parking spots for a specific lot"""
+    from models import ParkingLot, ParkingSpot
+    
+    lot = ParkingLot.query.get(lot_id)
+    if not lot:
+        return jsonify({'message': 'Parking lot not found', 'error': 'not_found'}), 404
+    
+    spots = ParkingSpot.query.filter_by(lot_id=lot_id).order_by(ParkingSpot.spot_number).all()
+    return jsonify({
+        'lot': {
+            'id': lot.id,
+            'name': lot.name,
+            'price_per_hour': lot.price_per_hour
+        },
+        'spots': [{
+            'id': spot.id,
+            'spot_number': spot.spot_number,
+            'status': spot.status
+        } for spot in spots]
+    }), 200
+
+@api_bp.route('/api/users', methods=['GET'])
+@token_required
+@admin_required
+def get_users(current_user):
+    """Get all registered users (Admin only)"""
+    from models import Booking
+    
+    users = User.query.all()
+    return jsonify({
+        'users': [{
+            'id': user.id,
+            'email': user.email,
+            'username': user.username,
+            'active': user.active,
+            'roles': [role.name for role in user.roles],
+            'total_bookings': Booking.query.filter_by(user_id=user.id).count(),
+            'active_bookings': Booking.query.filter_by(user_id=user.id, status='Active').count()
+        } for user in users if not any(role.name == 'admin' for role in user.roles)]
+    }), 200
+
