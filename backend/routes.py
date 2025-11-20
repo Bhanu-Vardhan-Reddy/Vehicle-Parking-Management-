@@ -378,3 +378,147 @@ def get_users(current_user):
         } for user in users if not any(role.name == 'admin' for role in user.roles)]
     }), 200
 
+# ==========================================
+# Booking Endpoints (User) - Milestone 4
+# ==========================================
+
+@api_bp.route('/api/book', methods=['POST'])
+@token_required
+def book_spot(current_user):
+    """Book first available spot in a parking lot"""
+    from models import ParkingLot, ParkingSpot, Booking
+    
+    data = request.get_json()
+    
+    if not data or not data.get('lot_id'):
+        return jsonify({'message': 'lot_id is required', 'error': 'validation_error'}), 400
+    
+    # Check if user already has an active booking
+    active_booking = Booking.query.filter_by(user_id=current_user.id, status='Active').first()
+    if active_booking:
+        return jsonify({
+            'message': 'You already have an active booking. Please release it first.',
+            'error': 'active_booking_exists'
+        }), 400
+    
+    # Get the parking lot
+    lot = ParkingLot.query.get(data['lot_id'])
+    if not lot:
+        return jsonify({'message': 'Parking lot not found', 'error': 'not_found'}), 404
+    
+    # Find first available spot
+    available_spot = ParkingSpot.query.filter_by(
+        lot_id=lot.id, 
+        status='Available'
+    ).order_by(ParkingSpot.spot_number).first()
+    
+    if not available_spot:
+        return jsonify({
+            'message': 'No available spots in this lot',
+            'error': 'no_spots_available'
+        }), 400
+    
+    # Create booking
+    booking = Booking(
+        user_id=current_user.id,
+        spot_id=available_spot.id,
+        start_time=datetime.now(),
+        status='Active'
+    )
+    
+    # Update spot status
+    available_spot.status = 'Occupied'
+    
+    db.session.add(booking)
+    db.session.commit()
+    
+    return jsonify({
+        'message': f'Successfully booked Spot #{available_spot.spot_number}',
+        'booking': {
+            'id': booking.id,
+            'spot_number': available_spot.spot_number,
+            'lot_name': lot.name,
+            'start_time': booking.start_time.isoformat(),
+            'price_per_hour': lot.price_per_hour
+        }
+    }), 201
+
+@api_bp.route('/api/release/<int:booking_id>', methods=['POST'])
+@token_required
+def release_spot(current_user, booking_id):
+    """Release a booked spot and calculate cost"""
+    from models import Booking, ParkingSpot, ParkingLot
+    
+    # Get booking
+    booking = Booking.query.get(booking_id)
+    if not booking:
+        return jsonify({'message': 'Booking not found', 'error': 'not_found'}), 404
+    
+    # Verify ownership
+    if booking.user_id != current_user.id:
+        return jsonify({'message': 'Unauthorized', 'error': 'unauthorized'}), 403
+    
+    # Check if already completed
+    if booking.status == 'Completed':
+        return jsonify({'message': 'Booking already completed', 'error': 'already_completed'}), 400
+    
+    # Get spot and lot
+    spot = ParkingSpot.query.get(booking.spot_id)
+    lot = ParkingLot.query.get(spot.lot_id)
+    
+    # Calculate cost
+    booking.end_time = datetime.now()
+    duration_seconds = (booking.end_time - booking.start_time).total_seconds()
+    duration_hours = duration_seconds / 3600  # Convert to hours
+    
+    # Minimum charge: 1 hour
+    if duration_hours < 1:
+        duration_hours = 1
+    
+    booking.total_cost = round(duration_hours * lot.price_per_hour, 2)
+    booking.status = 'Completed'
+    
+    # Update spot status
+    spot.status = 'Available'
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Spot released successfully',
+        'booking': {
+            'id': booking.id,
+            'spot_number': spot.spot_number,
+            'lot_name': lot.name,
+            'start_time': booking.start_time.isoformat(),
+            'end_time': booking.end_time.isoformat(),
+            'duration_hours': round(duration_hours, 2),
+            'total_cost': booking.total_cost,
+            'status': booking.status
+        }
+    }), 200
+
+@api_bp.route('/api/bookings', methods=['GET'])
+@token_required
+def get_bookings(current_user):
+    """Get user's booking history"""
+    from models import Booking, ParkingSpot, ParkingLot
+    
+    bookings = Booking.query.filter_by(user_id=current_user.id).order_by(Booking.start_time.desc()).all()
+    
+    result = []
+    for booking in bookings:
+        spot = ParkingSpot.query.get(booking.spot_id)
+        lot = ParkingLot.query.get(spot.lot_id)
+        
+        result.append({
+            'id': booking.id,
+            'lot_name': lot.name,
+            'spot_number': spot.spot_number,
+            'start_time': booking.start_time.isoformat(),
+            'end_time': booking.end_time.isoformat() if booking.end_time else None,
+            'total_cost': booking.total_cost,
+            'status': booking.status
+        })
+    
+    return jsonify({'bookings': result}), 200
+
