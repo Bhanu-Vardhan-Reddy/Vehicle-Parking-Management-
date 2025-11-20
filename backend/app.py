@@ -1,8 +1,10 @@
 """
 Flask Application Entry Point
 Milestone 1: Database Models and Admin Seeding
+Milestone 2: Authentication & RBAC
 """
 from flask import Flask
+from flask_cors import CORS
 from flask_security import Security, SQLAlchemyUserDatastore, hash_password
 from config import Config
 from models import db, User, Role
@@ -16,15 +18,18 @@ def create_app(config_class=Config):
     # Initialize database
     db.init_app(app)
     
+    # Enable CORS for all routes
+    CORS(app)
+    
     # Setup Flask-Security
     user_datastore = SQLAlchemyUserDatastore(db, User, Role)
     security = Security(app, user_datastore)
     
+    # Create instance directory inside backend if it doesn't exist
+    instance_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
+    os.makedirs(instance_path, exist_ok=True)
+    
     with app.app_context():
-        # Create instance directory if it doesn't exist
-        instance_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'instance')
-        os.makedirs(instance_path, exist_ok=True)
-        
         # Create all database tables
         db.create_all()
         
@@ -48,13 +53,19 @@ def create_app(config_class=Config):
         else:
             print('✅ Database already initialized!')
     
+    # Register blueprints
+    from routes import api_bp
+    app.register_blueprint(api_bp)
+    
     # Simple test route
     @app.route('/')
     def index():
         return '''
         <h1>🚗 Vehicle Parking System</h1>
-        <p>Milestone 1: Database Models ✅</p>
-        <p>Database initialized with 5 tables:</p>
+        <p><strong>Milestone 1:</strong> Database Models ✅</p>
+        <p><strong>Milestone 2:</strong> Authentication & RBAC ✅</p>
+        
+        <h2>📊 Database Tables (5)</h2>
         <ul>
             <li>User</li>
             <li>Role</li>
@@ -62,7 +73,21 @@ def create_app(config_class=Config):
             <li>ParkingSpot</li>
             <li>Booking</li>
         </ul>
-        <p>Admin user: admin@parking.com / admin123</p>
+        
+        <h2>🔐 API Endpoints (5)</h2>
+        <ul>
+            <li><strong>POST</strong> /auth/register - Register new user</li>
+            <li><strong>POST</strong> /auth/login - Login (admin/user)</li>
+            <li><strong>GET</strong> /auth/verify - Verify token</li>
+            <li><strong>GET</strong> /test/protected - Test protected route</li>
+            <li><strong>GET</strong> /test/admin - Test admin route</li>
+        </ul>
+        
+        <h2>👤 Default Admin</h2>
+        <p>Email: <code>admin@parking.com</code><br>
+        Password: <code>admin123</code></p>
+        
+        <p><em>Use Postman or curl to test the API endpoints!</em></p>
         '''
     
     return app
