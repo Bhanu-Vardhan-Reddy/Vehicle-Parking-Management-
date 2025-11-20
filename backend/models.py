@@ -71,4 +71,9 @@ class Booking(db.Model):
     start_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     end_time = db.Column(db.DateTime, nullable=True)
     total_cost = db.Column(db.Float, default=0.0)
-    status = db.Column(db.String(20), default='Active', nullable=False)  # Active or Completed
+    status = db.Column(db.String(20), default='Active', nullable=False)  # Active, Completed, Reserved
+    booking_type = db.Column(db.String(20), default='immediate')  # immediate, reserved
+    
+    # For reserved bookings
+    reserved_start = db.Column(db.DateTime, nullable=True)
+    reserved_end = db.Column(db.DateTime, nullable=True)

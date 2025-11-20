@@ -6,7 +6,7 @@ from flask import Blueprint, request, jsonify
 from flask_security import hash_password
 from flask_security.utils import verify_password
 from models import db, User, Role
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import jwt
 from functools import wraps
 import os
@@ -337,25 +337,47 @@ def delete_lot(current_user, lot_id):
 @api_bp.route('/api/spots/<int:lot_id>', methods=['GET'])
 @token_required
 def get_spots(current_user, lot_id):
-    """Get all parking spots for a specific lot"""
-    from models import ParkingLot, ParkingSpot
+    """Get all parking spots for a specific lot with reservation info"""
+    from models import ParkingLot, ParkingSpot, Booking
     
     lot = ParkingLot.query.get(lot_id)
     if not lot:
         return jsonify({'message': 'Parking lot not found', 'error': 'not_found'}), 404
     
     spots = ParkingSpot.query.filter_by(lot_id=lot_id).order_by(ParkingSpot.spot_number).all()
+    
+    result_spots = []
+    for spot in spots:
+        spot_data = {
+            'id': spot.id,
+            'spot_number': spot.spot_number,
+            'status': spot.status,
+            'reservations': []
+        }
+        
+        # Get active and reserved bookings for this spot
+        bookings = Booking.query.filter(
+            Booking.spot_id == spot.id,
+            Booking.status.in_(['Active', 'Reserved'])
+        ).all()
+        
+        for booking in bookings:
+            if booking.status == 'Reserved':
+                spot_data['reservations'].append({
+                    'start': booking.reserved_start.isoformat(),
+                    'end': booking.reserved_end.isoformat(),
+                    'user_email': booking.user.email if booking.user_id != current_user.id else 'You'
+                })
+        
+        result_spots.append(spot_data)
+    
     return jsonify({
         'lot': {
             'id': lot.id,
             'name': lot.name,
             'price_per_hour': lot.price_per_hour
         },
-        'spots': [{
-            'id': spot.id,
-            'spot_number': spot.spot_number,
-            'status': spot.status
-        } for spot in spots]
+        'spots': result_spots
     }), 200
 
 @api_bp.route('/api/users', methods=['GET'])
@@ -378,6 +400,150 @@ def get_users(current_user):
         } for user in users if not any(role.name == 'admin' for role in user.roles)]
     }), 200
 
+@api_bp.route('/api/admin/bookings', methods=['GET'])
+@token_required
+@admin_required
+def get_all_bookings(current_user):
+    """Get all bookings across all users (Admin only)"""
+    from models import Booking, ParkingSpot, ParkingLot
+    
+    # Get filter parameter (optional)
+    status_filter = request.args.get('status')  # Active, Reserved, Completed, or None for all
+    
+    query = Booking.query
+    if status_filter:
+        query = query.filter_by(status=status_filter)
+    
+    bookings = query.order_by(Booking.start_time.desc()).all()
+    
+    result = []
+    for booking in bookings:
+        spot = ParkingSpot.query.get(booking.spot_id)
+        lot = ParkingLot.query.get(spot.lot_id)
+        user = User.query.get(booking.user_id)
+        
+        result.append({
+            'id': booking.id,
+            'user_email': user.email,
+            'lot_name': lot.name,
+            'spot_number': spot.spot_number,
+            'booking_type': booking.booking_type,
+            'start_time': booking.start_time.isoformat(),
+            'end_time': booking.end_time.isoformat() if booking.end_time else None,
+            'reserved_start': booking.reserved_start.isoformat() if booking.reserved_start else None,
+            'reserved_end': booking.reserved_end.isoformat() if booking.reserved_end else None,
+            'total_cost': booking.total_cost,
+            'status': booking.status
+        })
+    
+    return jsonify({'bookings': result}), 200
+
+# ==========================================
+# Analytics & Stats Endpoints - Milestone 6
+# ==========================================
+
+@api_bp.route('/api/stats/admin', methods=['GET'])
+@token_required
+@admin_required
+def get_admin_stats(current_user):
+    """Get admin statistics (Admin only)"""
+    from models import ParkingLot, ParkingSpot, Booking
+    from sqlalchemy import func
+    
+    # Total revenue
+    total_revenue = db.session.query(func.sum(Booking.total_cost)).filter(
+        Booking.status == 'Completed'
+    ).scalar() or 0.0
+    
+    # Total spots and occupancy rate
+    total_spots = ParkingSpot.query.count()
+    occupied_spots = ParkingSpot.query.filter_by(status='Occupied').count()
+    occupancy_rate = round((occupied_spots / total_spots * 100) if total_spots > 0 else 0, 2)
+    
+    # Revenue per lot
+    lots = ParkingLot.query.all()
+    revenue_by_lot = []
+    for lot in lots:
+        lot_spots = [spot.id for spot in lot.spots]
+        lot_revenue = db.session.query(func.sum(Booking.total_cost)).filter(
+            Booking.spot_id.in_(lot_spots),
+            Booking.status == 'Completed'
+        ).scalar() or 0.0
+        
+        revenue_by_lot.append({
+            'lot_name': lot.name,
+            'revenue': float(lot_revenue)
+        })
+    
+    # Total bookings by status
+    active_bookings = Booking.query.filter_by(status='Active').count()
+    reserved_bookings = Booking.query.filter_by(status='Reserved').count()
+    completed_bookings = Booking.query.filter_by(status='Completed').count()
+    
+    return jsonify({
+        'total_revenue': float(total_revenue),
+        'occupancy_rate': occupancy_rate,
+        'revenue_by_lot': revenue_by_lot,
+        'total_bookings': active_bookings + reserved_bookings + completed_bookings,
+        'active_bookings': active_bookings,
+        'reserved_bookings': reserved_bookings,
+        'completed_bookings': completed_bookings
+    }), 200
+
+@api_bp.route('/api/stats/user', methods=['GET'])
+@token_required
+def get_user_stats(current_user):
+    """Get user statistics"""
+    from models import Booking
+    from sqlalchemy import func, extract
+    from dateutil.relativedelta import relativedelta
+    
+    # Total spent
+    total_spent = db.session.query(func.sum(Booking.total_cost)).filter(
+        Booking.user_id == current_user.id,
+        Booking.status == 'Completed'
+    ).scalar() or 0.0
+    
+    # Monthly bookings for last 6 months
+    now = datetime.now()
+    monthly_data = []
+    
+    for i in range(5, -1, -1):  # 6 months ago to now
+        month_date = now - relativedelta(months=i)
+        month_start = month_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        if i == 0:
+            month_end = now
+        else:
+            next_month = month_date + relativedelta(months=1)
+            month_end = next_month.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        # Count bookings in this month
+        count = Booking.query.filter(
+            Booking.user_id == current_user.id,
+            Booking.start_time >= month_start,
+            Booking.start_time < month_end
+        ).count()
+        
+        # Sum spending in this month
+        spending = db.session.query(func.sum(Booking.total_cost)).filter(
+            Booking.user_id == current_user.id,
+            Booking.start_time >= month_start,
+            Booking.start_time < month_end,
+            Booking.status == 'Completed'
+        ).scalar() or 0.0
+        
+        monthly_data.append({
+            'month': month_date.strftime('%b %Y'),
+            'bookings': count,
+            'spending': float(spending)
+        })
+    
+    return jsonify({
+        'total_spent': float(total_spent),
+        'monthly_bookings': monthly_data
+    }), 200
+
 # ==========================================
 # Booking Endpoints (User) - Milestone 4
 # ==========================================
@@ -385,63 +551,195 @@ def get_users(current_user):
 @api_bp.route('/api/book', methods=['POST'])
 @token_required
 def book_spot(current_user):
-    """Book first available spot in a parking lot"""
+    """Book or reserve a parking spot"""
     from models import ParkingLot, ParkingSpot, Booking
+    from dateutil import parser
     
     data = request.get_json()
     
     if not data or not data.get('lot_id'):
         return jsonify({'message': 'lot_id is required', 'error': 'validation_error'}), 400
     
-    # Check if user already has an active booking
-    active_booking = Booking.query.filter_by(user_id=current_user.id, status='Active').first()
-    if active_booking:
-        return jsonify({
-            'message': 'You already have an active booking. Please release it first.',
-            'error': 'active_booking_exists'
-        }), 400
+    booking_type = data.get('booking_type', 'immediate')  # immediate or reserved
+    spot_id = data.get('spot_id')  # Optional: user-selected spot
+    
+    # Check if user already has an active booking (for immediate bookings only)
+    if booking_type == 'immediate':
+        active_booking = Booking.query.filter_by(user_id=current_user.id, status='Active').first()
+        if active_booking:
+            return jsonify({
+                'message': 'You already have an active booking. Please release it first.',
+                'error': 'active_booking_exists'
+            }), 400
     
     # Get the parking lot
     lot = ParkingLot.query.get(data['lot_id'])
     if not lot:
         return jsonify({'message': 'Parking lot not found', 'error': 'not_found'}), 404
     
-    # Find first available spot
-    available_spot = ParkingSpot.query.filter_by(
-        lot_id=lot.id, 
-        status='Available'
-    ).order_by(ParkingSpot.spot_number).first()
-    
-    if not available_spot:
+    # Handle RESERVED bookings
+    if booking_type == 'reserved':
+        if not data.get('reserved_start') or not data.get('reserved_end'):
+            return jsonify({
+                'message': 'reserved_start and reserved_end are required for reservations',
+                'error': 'validation_error'
+            }), 400
+        
+        try:
+            reserved_start = parser.isoparse(data['reserved_start'])
+            reserved_end = parser.isoparse(data['reserved_end'])
+            
+            # Convert to UTC if timezone-aware, then make naive for database storage
+            if reserved_start.tzinfo is not None:
+                reserved_start = reserved_start.astimezone(timezone.utc).replace(tzinfo=None)
+            if reserved_end.tzinfo is not None:
+                reserved_end = reserved_end.astimezone(timezone.utc).replace(tzinfo=None)
+        except:
+            return jsonify({'message': 'Invalid date format', 'error': 'validation_error'}), 400
+        
+        # Validate times
+        if reserved_start >= reserved_end:
+            return jsonify({'message': 'End time must be after start time', 'error': 'validation_error'}), 400
+        
+        # Compare with UTC now
+        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+        if reserved_start < now_utc:
+            return jsonify({'message': 'Start time cannot be in the past', 'error': 'validation_error'}), 400
+        
+        # Find available spot (user-selected or auto)
+        if spot_id:
+            selected_spot = ParkingSpot.query.filter_by(id=spot_id, lot_id=lot.id).first()
+            if not selected_spot:
+                return jsonify({'message': 'Invalid spot selection', 'error': 'not_found'}), 404
+            
+            # Check for time conflicts
+            conflicts = Booking.query.filter(
+                Booking.spot_id == spot_id,
+                Booking.status.in_(['Active', 'Reserved']),
+                db.or_(
+                    db.and_(Booking.reserved_start <= reserved_start, Booking.reserved_end > reserved_start),
+                    db.and_(Booking.reserved_start < reserved_end, Booking.reserved_end >= reserved_end),
+                    db.and_(Booking.reserved_start >= reserved_start, Booking.reserved_end <= reserved_end)
+                )
+            ).first()
+            
+            if conflicts:
+                return jsonify({
+                    'message': f'Spot #{selected_spot.spot_number} is already reserved from {conflicts.reserved_start} to {conflicts.reserved_end}',
+                    'error': 'time_conflict',
+                    'conflict': {
+                        'start': conflicts.reserved_start.isoformat(),
+                        'end': conflicts.reserved_end.isoformat()
+                    }
+                }), 400
+            
+            target_spot = selected_spot
+        else:
+            # Auto-find available spot without conflicts
+            all_spots = ParkingSpot.query.filter_by(lot_id=lot.id).order_by(ParkingSpot.spot_number).all()
+            target_spot = None
+            
+            for spot in all_spots:
+                conflicts = Booking.query.filter(
+                    Booking.spot_id == spot.id,
+                    Booking.status.in_(['Active', 'Reserved']),
+                    db.or_(
+                        db.and_(Booking.reserved_start <= reserved_start, Booking.reserved_end > reserved_start),
+                        db.and_(Booking.reserved_start < reserved_end, Booking.reserved_end >= reserved_end),
+                        db.and_(Booking.reserved_start >= reserved_start, Booking.reserved_end <= reserved_end)
+                    )
+                ).first()
+                
+                if not conflicts:
+                    target_spot = spot
+                    break
+            
+            if not target_spot:
+                return jsonify({
+                    'message': 'No spots available for the selected time period',
+                    'error': 'no_spots_available'
+                }), 400
+        
+        # Create reservation
+        booking = Booking(
+            user_id=current_user.id,
+            spot_id=target_spot.id,
+            booking_type='reserved',
+            status='Reserved',
+            reserved_start=reserved_start,
+            reserved_end=reserved_end,
+            start_time=reserved_start  # For consistency
+        )
+        
+        # Calculate cost for reservation
+        duration_hours = (reserved_end - reserved_start).total_seconds() / 3600
+        if duration_hours < 1:
+            duration_hours = 1
+        booking.total_cost = round(duration_hours * lot.price_per_hour, 2)
+        
+        db.session.add(booking)
+        db.session.commit()
+        
         return jsonify({
-            'message': 'No available spots in this lot',
-            'error': 'no_spots_available'
-        }), 400
+            'message': f'Successfully reserved Spot #{target_spot.spot_number}',
+            'booking': {
+                'id': booking.id,
+                'spot_number': target_spot.spot_number,
+                'lot_name': lot.name,
+                'booking_type': 'reserved',
+                'reserved_start': reserved_start.isoformat(),
+                'reserved_end': reserved_end.isoformat(),
+                'total_cost': booking.total_cost,
+                'price_per_hour': lot.price_per_hour
+            }
+        }), 201
     
-    # Create booking
-    booking = Booking(
-        user_id=current_user.id,
-        spot_id=available_spot.id,
-        start_time=datetime.now(),
-        status='Active'
-    )
-    
-    # Update spot status
-    available_spot.status = 'Occupied'
-    
-    db.session.add(booking)
-    db.session.commit()
-    
-    return jsonify({
-        'message': f'Successfully booked Spot #{available_spot.spot_number}',
-        'booking': {
-            'id': booking.id,
-            'spot_number': available_spot.spot_number,
-            'lot_name': lot.name,
-            'start_time': booking.start_time.isoformat(),
-            'price_per_hour': lot.price_per_hour
-        }
-    }), 201
+    # Handle IMMEDIATE bookings
+    else:
+        # Find available spot (user-selected or auto)
+        if spot_id:
+            selected_spot = ParkingSpot.query.filter_by(id=spot_id, lot_id=lot.id, status='Available').first()
+            if not selected_spot:
+                return jsonify({'message': 'Selected spot is not available', 'error': 'spot_unavailable'}), 400
+            target_spot = selected_spot
+        else:
+            target_spot = ParkingSpot.query.filter_by(
+                lot_id=lot.id, 
+                status='Available'
+            ).order_by(ParkingSpot.spot_number).first()
+            
+            if not target_spot:
+                return jsonify({
+                    'message': 'No available spots in this lot',
+                    'error': 'no_spots_available'
+                }), 400
+        
+        # Create booking
+        booking = Booking(
+            user_id=current_user.id,
+            spot_id=target_spot.id,
+            start_time=datetime.now(),
+            booking_type='immediate',
+            status='Active'
+        )
+        
+        # Update spot status
+        target_spot.status = 'Occupied'
+        
+        db.session.add(booking)
+        db.session.commit()
+        
+        return jsonify({
+            'message': f'Successfully booked Spot #{target_spot.spot_number}',
+            'booking': {
+                'id': booking.id,
+                'spot_number': target_spot.spot_number,
+                'lot_name': lot.name,
+                'booking_type': 'immediate',
+                'start_time': booking.start_time.isoformat(),
+                'price_per_hour': lot.price_per_hour
+            }
+        }), 201
 
 @api_bp.route('/api/release/<int:booking_id>', methods=['POST'])
 @token_required
@@ -514,8 +812,11 @@ def get_bookings(current_user):
             'id': booking.id,
             'lot_name': lot.name,
             'spot_number': spot.spot_number,
+            'booking_type': booking.booking_type,
             'start_time': booking.start_time.isoformat(),
             'end_time': booking.end_time.isoformat() if booking.end_time else None,
+            'reserved_start': booking.reserved_start.isoformat() if booking.reserved_start else None,
+            'reserved_end': booking.reserved_end.isoformat() if booking.reserved_end else None,
             'total_cost': booking.total_cost,
             'status': booking.status
         })
