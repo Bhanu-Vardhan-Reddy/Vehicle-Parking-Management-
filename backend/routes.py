@@ -1009,3 +1009,26 @@ def trigger_monthly_report(current_user):
             'error': 'task_failed'
         }), 500
 
+@api_bp.route('/api/admin/export-all', methods=['GET'])
+@token_required
+@admin_required
+def trigger_admin_export(current_user):
+    """Trigger admin complete data export (Admin only)"""
+    try:
+        from tasks import export_admin_all_data
+        
+        # Trigger async task
+        task = export_admin_all_data.delay()
+        
+        return jsonify({
+            'message': '📊 Complete data export started! You will receive an email with 3 CSV files shortly.',
+            'task_id': task.id,
+            'status': 'processing'
+        }), 202
+        
+    except Exception as e:
+        return jsonify({
+            'message': f'Failed to trigger admin export: {str(e)}',
+            'error': 'task_failed'
+        }), 500
+

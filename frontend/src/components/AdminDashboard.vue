@@ -68,7 +68,7 @@
         <div class="card-body">
           <p class="text-muted mb-3">Trigger email notifications to all users</p>
           <div class="row g-3">
-            <div class="col-md-6">
+            <div class="col-md-4">
               <div class="card h-100">
                 <div class="card-body">
                   <h5 class="card-title">📬 Daily Reminder</h5>
@@ -91,7 +91,7 @@
                 </div>
               </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
               <div class="card h-100">
                 <div class="card-body">
                   <h5 class="card-title">📊 Monthly Report</h5>
@@ -109,6 +109,29 @@
                     </span>
                     <span v-else>
                       Send Monthly Reports
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card h-100">
+                <div class="card-body">
+                  <h5 class="card-title">📥 Export All Data</h5>
+                  <p class="card-text text-muted">
+                    Export complete system data (users, lots, bookings) via email
+                  </p>
+                  <button 
+                    class="btn btn-warning w-100" 
+                    @click="exportAllData"
+                    :disabled="emailLoading"
+                  >
+                    <span v-if="emailLoading && emailTask === 'export'">
+                      <span class="spinner-border spinner-border-sm me-2"></span>
+                      Exporting...
+                    </span>
+                    <span v-else>
+                      Export All Data
                     </span>
                   </button>
                 </div>
@@ -708,6 +731,34 @@ export default {
         
       } catch (err) {
         this.error = err.response?.data?.message || 'Failed to send monthly reports'
+      } finally {
+        this.emailLoading = false
+        this.emailTask = null
+      }
+    },
+    
+    async exportAllData() {
+      if (!confirm('Export complete system data (Users, Lots, Bookings) to email? You will receive 3 CSV files.')) {
+        return
+      }
+      
+      this.error = null
+      this.success = null
+      this.emailLoading = true
+      this.emailTask = 'export'
+      
+      try {
+        const response = await axios.get('/api/admin/export-all', {
+          headers: { Authorization: `Bearer ${this.token}` }
+        })
+        
+        this.success = '📧 Complete data export started! You will receive an email with 3 CSV files (Users, Lots, Bookings) shortly. Check your inbox!'
+        if (response.data.task_id) {
+          this.success += ` Task ID: ${response.data.task_id}`
+        }
+        
+      } catch (err) {
+        this.error = err.response?.data?.message || 'Failed to export data'
       } finally {
         this.emailLoading = false
         this.emailTask = null

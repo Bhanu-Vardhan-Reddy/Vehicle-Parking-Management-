@@ -11,6 +11,9 @@ import csv
 import os
 from io import StringIO
 
+# Admin email address (hardcoded)
+ADMIN_EMAIL = "nbhanuvardhanreddy@gmail.com"
+
 # ==========================================
 # Task 1: Daily Reminder (Scheduled)
 # ==========================================
@@ -238,29 +241,30 @@ Parking Management Team"""
         
         # Send comprehensive monthly report to admin
         try:
-            admin = User.query.join(User.roles).filter(db.func.lower(User.roles.any(name='admin'))).first()
-            if admin:
-                # Calculate system-wide statistics
-                all_bookings = Booking.query.filter(
-                    Booking.start_time >= last_month_start,
-                    Booking.start_time < last_month_end
-                ).all()
-                
-                total_system_bookings = len(all_bookings)
-                total_revenue = sum(b.total_cost for b in all_bookings if b.status == 'Completed')
-                total_users_active = len(reports_sent)
-                
-                # Most popular lot
-                lot_usage = {}
-                for booking in all_bookings:
-                    spot = ParkingSpot.query.get(booking.spot_id)
-                    lot = ParkingLot.query.get(spot.lot_id)
-                    lot_usage[lot.name] = lot_usage.get(lot.name, 0) + 1
-                
-                most_popular_lot = max(lot_usage, key=lot_usage.get) if lot_usage else 'N/A'
-                
-                admin_subject = f"📊 Monthly System Report - {last_month_start.strftime('%B %Y')}"
-                admin_body = f"""Monthly Parking System Report - Admin Summary
+            # Use hardcoded admin email
+            admin_email = ADMIN_EMAIL
+            
+            # Calculate system-wide statistics
+            all_bookings = Booking.query.filter(
+                Booking.start_time >= last_month_start,
+                Booking.start_time < last_month_end
+            ).all()
+            
+            total_system_bookings = len(all_bookings)
+            total_revenue = sum(b.total_cost for b in all_bookings if b.status == 'Completed')
+            total_users_active = len(reports_sent)
+            
+            # Most popular lot
+            lot_usage = {}
+            for booking in all_bookings:
+                spot = ParkingSpot.query.get(booking.spot_id)
+                lot = ParkingLot.query.get(spot.lot_id)
+                lot_usage[lot.name] = lot_usage.get(lot.name, 0) + 1
+            
+            most_popular_lot = max(lot_usage, key=lot_usage.get) if lot_usage else 'N/A'
+            
+            admin_subject = f"📊 Monthly System Report - {last_month_start.strftime('%B %Y')}"
+            admin_body = f"""Monthly Parking System Report - Admin Summary
 
 Month: {last_month_start.strftime('%B %Y')}
 
@@ -272,19 +276,19 @@ SYSTEM STATISTICS:
 - Most Popular Lot: {most_popular_lot}
 
 Parking Management System"""
-                
-                # Build lot performance table
-                lot_rows = ""
-                for lot_name, count in sorted(lot_usage.items(), key=lambda x: x[1], reverse=True):
-                    lot_rows += f"""
-                    <tr>
-                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">{lot_name}</td>
-                        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">{count}</td>
-                    </tr>
-                    """
-                
-                admin_html = f"""
-                <html>
+            
+            # Build lot performance table
+            lot_rows = ""
+            for lot_name, count in sorted(lot_usage.items(), key=lambda x: x[1], reverse=True):
+                lot_rows += f"""
+                <tr>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">{lot_name}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">{count}</td>
+                </tr>
+                """
+            
+            admin_html = f"""
+            <html>
                 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                     <div style="max-width: 800px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
                         <h2 style="color: #0d6efd;">📊 Monthly System Report - Admin</h2>
@@ -334,13 +338,13 @@ Parking Management System"""
                             <strong>Parking Management System</strong>
                         </p>
                     </div>
-                </body>
-                </html>
-                """
-                
-                email_alert(admin_subject, admin_body, admin.email, admin_html)
-                print(f"✅ Monthly admin report sent to {admin.email}")
-                reports_sent.append(f"{admin.email} (admin)")
+            </body>
+            </html>
+            """
+            
+            email_alert(admin_subject, admin_body, admin_email, admin_html)
+            print(f"✅ Monthly admin report sent to {admin_email}")
+            reports_sent.append(f"{admin_email} (admin)")
         except Exception as e:
             print(f"❌ Failed to send monthly admin report: {str(e)}")
         
@@ -740,10 +744,8 @@ def send_daily_admin_report(self):
     try:
         self.update_state(state='PROGRESS', meta={'message': 'Generating daily admin report'})
         
-        # Get admin user
-        admin = User.query.join(User.roles).filter(db.func.lower(User.roles.any(name='admin'))).first()
-        if not admin:
-            return {'status': 'error', 'message': 'Admin user not found'}
+        # Use hardcoded admin email
+        admin_email = ADMIN_EMAIL
         
         # Get yesterday's date range
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -911,8 +913,8 @@ Parking Management System
         
         # Send email to admin
         try:
-            email_alert(subject, body, admin.email, html)
-            print(f"✅ Daily admin report sent to {admin.email}")
+            email_alert(subject, body, admin_email, html)
+            print(f"✅ Daily admin report sent to {admin_email}")
             
             return {
                 'status': 'success',
@@ -920,7 +922,7 @@ Parking Management System
                 'date': yesterday.strftime('%Y-%m-%d'),
                 'total_bookings': total_bookings,
                 'revenue': float(revenue_yesterday),
-                'admin_email': admin.email,
+                'admin_email': admin_email,
                 'executed_at': datetime.now().isoformat()
             }
         except Exception as e:
@@ -931,6 +933,281 @@ Parking Management System
                 'error': str(e)
             }
             
+    except Exception as e:
+        self.update_state(state='FAILURE', meta={'error': str(e)})
+        return {'status': 'error', 'message': str(e)}
+
+
+# ==========================================
+# Task 6: Admin Export All Data (User-triggered)
+# ==========================================
+
+@celery.task(bind=True, name='tasks.export_admin_all_data')
+def export_admin_all_data(self):
+    """
+    Generate comprehensive CSV export of all system data for admin
+    Triggered: Admin clicks "Export All Data"
+    """
+    try:
+        self.update_state(state='PROGRESS', meta={'message': 'Starting comprehensive data export'})
+        
+        # Use hardcoded admin email
+        admin_email = ADMIN_EMAIL
+        
+        # Get all data
+        all_users = User.query.filter(~User.roles.any(name='admin')).all()
+        all_lots = ParkingLot.query.all()
+        all_spots = ParkingSpot.query.all()
+        all_bookings = Booking.query.order_by(Booking.start_time.desc()).all()
+        
+        # Create CSV for Users
+        users_output = StringIO()
+        users_writer = csv.writer(users_output)
+        users_writer.writerow(['User ID', 'Email', 'Username', 'Total Bookings', 'Total Spent'])
+        
+        for user in all_users:
+            total_bookings_count = Booking.query.filter_by(user_id=user.id).count()
+            total_spent = db.session.query(func.sum(Booking.total_cost)).filter(
+                Booking.user_id == user.id,
+                Booking.status == 'Completed'
+            ).scalar() or 0.0
+            
+            users_writer.writerow([
+                user.id,
+                user.email,
+                user.username,
+                total_bookings_count,
+                f"{total_spent:.2f}"
+            ])
+        
+        # Create CSV for Parking Lots
+        lots_output = StringIO()
+        lots_writer = csv.writer(lots_output)
+        lots_writer.writerow(['Lot ID', 'Name', 'Capacity', 'Price Per Hour', 'Available Spots', 'Occupied Spots', 'Total Revenue'])
+        
+        for lot in all_lots:
+            available_spots = sum(1 for spot in lot.spots if spot.status == 'Available')
+            occupied_spots = sum(1 for spot in lot.spots if spot.status == 'Occupied')
+            
+            # Calculate revenue for this lot
+            lot_spots = [spot.id for spot in lot.spots]
+            lot_revenue = db.session.query(func.sum(Booking.total_cost)).filter(
+                Booking.spot_id.in_(lot_spots),
+                Booking.status == 'Completed'
+            ).scalar() or 0.0
+            
+            lots_writer.writerow([
+                lot.id,
+                lot.name,
+                lot.capacity,
+                f"{lot.price_per_hour:.2f}",
+                available_spots,
+                occupied_spots,
+                f"{lot_revenue:.2f}"
+            ])
+        
+        # Create CSV for Bookings
+        bookings_output = StringIO()
+        bookings_writer = csv.writer(bookings_output)
+        bookings_writer.writerow([
+            'Booking ID', 'User Email', 'Parking Lot', 'Spot Number', 'Type',
+            'Start Time', 'End Time', 'Reserved Start', 'Reserved End',
+            'Duration (hours)', 'Cost ($)', 'Status'
+        ])
+        
+        for booking in all_bookings:
+            spot = ParkingSpot.query.get(booking.spot_id)
+            lot = ParkingLot.query.get(spot.lot_id)
+            user = User.query.get(booking.user_id)
+            
+            # Calculate duration
+            if booking.end_time:
+                duration = (booking.end_time - booking.start_time).total_seconds() / 3600
+            elif booking.reserved_start and booking.reserved_end:
+                duration = (booking.reserved_end - booking.reserved_start).total_seconds() / 3600
+            else:
+                duration = 'Ongoing'
+            
+            bookings_writer.writerow([
+                booking.id,
+                user.email,
+                lot.name,
+                spot.spot_number,
+                booking.booking_type.capitalize(),
+                booking.start_time.strftime('%Y-%m-%d %H:%M:%S'),
+                booking.end_time.strftime('%Y-%m-%d %H:%M:%S') if booking.end_time else 'N/A',
+                booking.reserved_start.strftime('%Y-%m-%d %H:%M:%S') if booking.reserved_start else 'N/A',
+                booking.reserved_end.strftime('%Y-%m-%d %H:%M:%S') if booking.reserved_end else 'N/A',
+                f"{duration:.2f}" if isinstance(duration, float) else duration,
+                f"{booking.total_cost:.2f}",
+                booking.status
+            ])
+        
+        # Save CSV files
+        os.makedirs('exports/admin', exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        users_filename = f"exports/admin/users_{timestamp}.csv"
+        lots_filename = f"exports/admin/lots_{timestamp}.csv"
+        bookings_filename = f"exports/admin/bookings_{timestamp}.csv"
+        
+        with open(users_filename, 'w', newline='') as f:
+            f.write(users_output.getvalue())
+        
+        with open(lots_filename, 'w', newline='') as f:
+            f.write(lots_output.getvalue())
+        
+        with open(bookings_filename, 'w', newline='') as f:
+            f.write(bookings_output.getvalue())
+        
+        # Calculate summary statistics
+        total_revenue = db.session.query(func.sum(Booking.total_cost)).filter(
+            Booking.status == 'Completed'
+        ).scalar() or 0.0
+        
+        total_bookings = len(all_bookings)
+        total_users = len(all_users)
+        total_lots = len(all_lots)
+        total_spots = len(all_spots)
+        
+        # Prepare email with attachments
+        subject = f"📊 Complete System Export - {datetime.now().strftime('%B %d, %Y')}"
+        
+        body = f"""Complete System Data Export
+
+Export Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+SUMMARY STATISTICS:
+- Total Users: {total_users}
+- Total Parking Lots: {total_lots}
+- Total Parking Spots: {total_spots}
+- Total Bookings: {total_bookings}
+- Total Revenue: ${total_revenue:.2f}
+
+ATTACHED FILES:
+1. users_{timestamp}.csv - All user data
+2. lots_{timestamp}.csv - All parking lot data
+3. bookings_{timestamp}.csv - All booking data
+
+All data exported successfully.
+
+Parking Management System"""
+        
+        html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 800px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
+                <h2 style="color: #0d6efd;">📊 Complete System Export</h2>
+                <p style="color: #6c757d; font-size: 16px;">Export Date: <strong>{datetime.now().strftime('%B %d, %Y at %H:%M')}</strong></p>
+                
+                <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
+                    <h3 style="margin-top: 0; color: #198754;">📈 Summary Statistics</h3>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                        <div style="background-color: white; padding: 15px; border-left: 4px solid #0d6efd; border-radius: 3px;">
+                            <p style="margin: 0; color: #6c757d; font-size: 14px;">Total Users</p>
+                            <p style="margin: 5px 0 0 0; font-size: 28px; font-weight: bold; color: #0d6efd;">{total_users}</p>
+                        </div>
+                        <div style="background-color: white; padding: 15px; border-left: 4px solid #ffc107; border-radius: 3px;">
+                            <p style="margin: 0; color: #6c757d; font-size: 14px;">Total Lots</p>
+                            <p style="margin: 5px 0 0 0; font-size: 28px; font-weight: bold; color: #ffc107;">{total_lots}</p>
+                        </div>
+                        <div style="background-color: white; padding: 15px; border-left: 4px solid #6c757d; border-radius: 3px;">
+                            <p style="margin: 0; color: #6c757d; font-size: 14px;">Total Spots</p>
+                            <p style="margin: 5px 0 0 0; font-size: 28px; font-weight: bold; color: #6c757d;">{total_spots}</p>
+                        </div>
+                        <div style="background-color: white; padding: 15px; border-left: 4px solid #dc3545; border-radius: 3px;">
+                            <p style="margin: 0; color: #6c757d; font-size: 14px;">Total Bookings</p>
+                            <p style="margin: 5px 0 0 0; font-size: 28px; font-weight: bold; color: #dc3545;">{total_bookings}</p>
+                        </div>
+                    </div>
+                    <div style="margin-top: 15px; padding: 15px; background-color: #198754; color: white; border-radius: 3px; text-align: center;">
+                        <p style="margin: 0; font-size: 14px;">Total Revenue Generated</p>
+                        <p style="margin: 5px 0 0 0; font-size: 32px; font-weight: bold;">${total_revenue:.2f}</p>
+                    </div>
+                </div>
+                
+                <div style="background-color: #d1ecf1; border-left: 4px solid #0dcaf0; padding: 15px; margin: 20px 0;">
+                    <h3 style="margin-top: 0; color: #0c5460;">📎 Attached Files</h3>
+                    <ul style="margin: 10px 0; padding-left: 20px;">
+                        <li style="margin: 5px 0;"><strong>users_{timestamp}.csv</strong> - All user data with bookings and spending</li>
+                        <li style="margin: 5px 0;"><strong>lots_{timestamp}.csv</strong> - All parking lot data with revenue</li>
+                        <li style="margin: 5px 0;"><strong>bookings_{timestamp}.csv</strong> - Complete booking history</li>
+                    </ul>
+                    <p style="margin: 10px 0 0 0; color: #0c5460;">💡 These files can be opened in Excel, Google Sheets, or any spreadsheet application.</p>
+                </div>
+                
+                <p style="color: #6c757d; font-size: 14px; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 20px;">
+                    This is a complete system data export<br>
+                    <strong>Parking Management System</strong>
+                </p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Send email with all CSV attachments
+        try:
+            from email.message import EmailMessage
+            import smtplib
+            
+            msg = EmailMessage()
+            msg['Subject'] = subject
+            msg['To'] = admin_email
+            msg['From'] = "nbhanuvardhanreddy@gmail.com"
+            
+            # Add HTML content
+            msg.set_content(body)
+            msg.add_alternative(html, subtype='html')
+            
+            # Attach all CSV files
+            with open(users_filename, 'rb') as f:
+                msg.add_attachment(f.read(), maintype='text', subtype='csv', filename=f'users_{timestamp}.csv')
+            
+            with open(lots_filename, 'rb') as f:
+                msg.add_attachment(f.read(), maintype='text', subtype='csv', filename=f'lots_{timestamp}.csv')
+            
+            with open(bookings_filename, 'rb') as f:
+                msg.add_attachment(f.read(), maintype='text', subtype='csv', filename=f'bookings_{timestamp}.csv')
+            
+            # Send email
+            smtp_user = "nbhanuvardhanreddy@gmail.com"
+            smtp_password = 'irsi znit bdyl hwcu'
+            
+            server = smtplib.SMTP('smtp.gmail.com', 587)
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+            server.quit()
+            
+            print(f"✅ Admin complete export sent to {admin_email}")
+            
+            return {
+                'status': 'success',
+                'task': 'admin_export_all',
+                'admin_email': admin_email,
+                'total_users': total_users,
+                'total_lots': total_lots,
+                'total_spots': total_spots,
+                'total_bookings': total_bookings,
+                'total_revenue': float(total_revenue),
+                'files': [users_filename, lots_filename, bookings_filename],
+                'generated_at': datetime.now().isoformat(),
+                'email_sent': True
+            }
+        except Exception as email_error:
+            print(f"❌ Failed to email admin export: {str(email_error)}")
+            return {
+                'status': 'success',
+                'task': 'admin_export_all',
+                'admin_email': admin_email,
+                'total_users': total_users,
+                'total_lots': total_lots,
+                'total_bookings': total_bookings,
+                'files': [users_filename, lots_filename, bookings_filename],
+                'generated_at': datetime.now().isoformat(),
+                'email_sent': False,
+                'email_error': str(email_error)
+            }
     except Exception as e:
         self.update_state(state='FAILURE', meta={'error': str(e)})
         return {'status': 'error', 'message': str(e)}
