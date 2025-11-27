@@ -60,6 +60,64 @@
         </div>
       </div>
 
+      <!-- Email Notification Management -->
+      <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+          <h4 class="m-0">📧 Email Notifications</h4>
+        </div>
+        <div class="card-body">
+          <p class="text-muted mb-3">Trigger email notifications to all users</p>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="card h-100">
+                <div class="card-body">
+                  <h5 class="card-title">📬 Daily Reminder</h5>
+                  <p class="card-text text-muted">
+                    Send reminder emails to users who haven't booked in 7+ days
+                  </p>
+                  <button 
+                    class="btn btn-primary w-100" 
+                    @click="sendDailyReminder"
+                    :disabled="emailLoading"
+                  >
+                    <span v-if="emailLoading && emailTask === 'daily'">
+                      <span class="spinner-border spinner-border-sm me-2"></span>
+                      Sending...
+                    </span>
+                    <span v-else>
+                      Send Daily Reminders
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card h-100">
+                <div class="card-body">
+                  <h5 class="card-title">📊 Monthly Report</h5>
+                  <p class="card-text text-muted">
+                    Send monthly parking summary to all users with recent activity
+                  </p>
+                  <button 
+                    class="btn btn-success w-100" 
+                    @click="sendMonthlyReport"
+                    :disabled="emailLoading"
+                  >
+                    <span v-if="emailLoading && emailTask === 'monthly'">
+                      <span class="spinner-border spinner-border-sm me-2"></span>
+                      Sending...
+                    </span>
+                    <span v-else>
+                      Send Monthly Reports
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Revenue Chart -->
       <div class="card mb-4">
         <div class="card-header">
@@ -317,7 +375,6 @@
                 <th>Username</th>
                 <th>Total Bookings</th>
                 <th>Active Bookings</th>
-                <th>Status</th>
               </tr>
             </thead>
             <tbody>
@@ -327,14 +384,6 @@
                 <td>{{ user.total_bookings }}</td>
                 <td>
                   <span class="badge bg-primary">{{ user.active_bookings }}</span>
-                </td>
-                <td>
-                  <span 
-                    class="badge" 
-                    :class="user.active ? 'bg-success' : 'bg-secondary'"
-                  >
-                    {{ user.active ? 'Active' : 'Inactive' }}
-                  </span>
                 </td>
               </tr>
             </tbody>
@@ -375,7 +424,9 @@ export default {
       
       error: null,
       success: null,
-      loading: false
+      loading: false,
+      emailLoading: false,
+      emailTask: null  // 'daily' or 'monthly'
     }
   },
   
@@ -595,6 +646,72 @@ export default {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       this.$router.push('/')
+    },
+    
+    async sendDailyReminder() {
+      if (!confirm('Send daily reminder emails to all inactive users (7+ days without booking)?')) {
+        return
+      }
+      
+      this.error = null
+      this.success = null
+      this.emailLoading = true
+      this.emailTask = 'daily'
+      
+      try {
+        const response = await axios.post('/api/admin/send-daily-reminder', {}, {
+          headers: { Authorization: `Bearer ${this.token}` }
+        })
+        
+        this.success = '✅ Daily reminder emails queued! Check Celery worker logs for progress.'
+        if (response.data.task_id) {
+          this.success += ` Task ID: ${response.data.task_id}`
+        }
+        
+        // Show additional info if available
+        if (response.data.message) {
+          this.success = response.data.message
+        }
+        
+      } catch (err) {
+        this.error = err.response?.data?.message || 'Failed to send daily reminders'
+      } finally {
+        this.emailLoading = false
+        this.emailTask = null
+      }
+    },
+    
+    async sendMonthlyReport() {
+      if (!confirm('Send monthly report emails to all users with bookings in the last month?')) {
+        return
+      }
+      
+      this.error = null
+      this.success = null
+      this.emailLoading = true
+      this.emailTask = 'monthly'
+      
+      try {
+        const response = await axios.post('/api/admin/send-monthly-report', {}, {
+          headers: { Authorization: `Bearer ${this.token}` }
+        })
+        
+        this.success = '✅ Monthly report emails queued! Check Celery worker logs for progress.'
+        if (response.data.task_id) {
+          this.success += ` Task ID: ${response.data.task_id}`
+        }
+        
+        // Show additional info if available
+        if (response.data.message) {
+          this.success = response.data.message
+        }
+        
+      } catch (err) {
+        this.error = err.response?.data?.message || 'Failed to send monthly reports'
+      } finally {
+        this.emailLoading = false
+        this.emailTask = null
+      }
     }
   }
 }

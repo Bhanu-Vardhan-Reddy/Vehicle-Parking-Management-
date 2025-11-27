@@ -3,6 +3,7 @@ Flask Application Entry Point
 Milestone 1: Database Models and Admin Seeding
 Milestone 2: Authentication & RBAC
 Milestone 7: Redis Caching
+Milestone 8: Celery Background Jobs
 """
 from flask import Flask
 from flask_cors import CORS
@@ -14,6 +15,9 @@ import os
 
 # Initialize cache
 cache = Cache()
+
+# Initialize Celery (will be configured later)
+celery = None
 
 def create_app(config_class=Config):
     """Create and configure Flask application"""
@@ -59,7 +63,6 @@ def create_app(config_class=Config):
                 email='admin@parking.com',
                 username='admin',
                 password=hash_password('admin123'),
-                active=True,
                 roles=[admin_role]
             )
             db.session.commit()

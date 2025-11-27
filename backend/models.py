@@ -31,11 +31,15 @@ class User(db.Model, UserMixin):
     username = db.Column(db.String(255), unique=True, nullable=True)
     password = db.Column(db.String(255), nullable=False)
     fs_uniquifier = db.Column(db.String(255), unique=True, nullable=False)
-    active = db.Column(db.Boolean(), default=True)
     
     # Relationships
     roles = db.relationship('Role', secondary=roles_users, backref=db.backref('users', lazy='dynamic'))
     bookings = db.relationship('Booking', backref='user', lazy=True, cascade='all, delete-orphan')
+    
+    @property
+    def active(self):
+        """Flask-Security compatibility - all users are active"""
+        return True
 
 class ParkingLot(db.Model):
     """Parking Lot model - represents a parking facility"""

@@ -25,3 +25,12 @@ class Config:
     CACHE_REDIS_PORT = 6379
     CACHE_REDIS_DB = 0
     CACHE_REDIS_URL = 'redis://localhost:6379/0'
+    
+    # Celery Configuration - Milestone 8 (New lowercase format)
+    broker_url = 'redis://127.0.0.1:6379/0'
+    result_backend = 'redis://127.0.0.1:6379/0'
+    task_serializer = 'json'
+    accept_content = ['json']
+    result_serializer = 'json'
+    timezone = 'UTC'
+    enable_utc = True

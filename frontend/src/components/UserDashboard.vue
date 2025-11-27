@@ -265,8 +265,15 @@
 
       <!-- Booking History -->
       <div class="card">
-        <div class="card-header">
-          <h4>Booking History</h4>
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h4 class="m-0">Booking History</h4>
+          <button 
+            class="btn btn-success btn-sm" 
+            @click="exportBookings"
+            :disabled="loading || bookings.length === 0"
+          >
+            📄 Export CSV
+          </button>
         </div>
         <div class="card-body">
           <div v-if="bookings.length === 0" class="text-center text-muted py-4">
@@ -780,6 +787,31 @@ export default {
       const hours = Math.max(1, diff / (1000 * 60 * 60))
       
       return (hours * booking.price_per_hour).toFixed(2)
+    },
+    
+    async exportBookings() {
+      this.error = null
+      this.success = null
+      this.loading = true
+      
+      try {
+        const response = await axios.get('/api/export', {
+          headers: { Authorization: `Bearer ${this.token}` }
+        })
+        
+        this.success = '📧 CSV export started! You will receive an email with your booking history shortly. Check your inbox!'
+        if (response.data.task_id) {
+          this.success += ` (Task ID: ${response.data.task_id})`
+        }
+        
+        // Refresh bookings to ensure latest data
+        this.fetchBookings()
+        
+      } catch (err) {
+        this.error = err.response?.data?.message || 'Failed to export bookings. Please try again.'
+      } finally {
+        this.loading = false
+      }
     },
     
     logout() {

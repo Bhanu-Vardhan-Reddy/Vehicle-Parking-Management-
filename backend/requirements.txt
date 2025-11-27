@@ -13,3 +13,7 @@ python-dateutil==2.8.2
 # Milestone 7: Redis Caching
 Flask-Caching==2.1.0
 redis==5.0.1
+
+# Milestone 8: Celery Jobs
+celery==5.3.4
+Flask-Mail==0.9.1

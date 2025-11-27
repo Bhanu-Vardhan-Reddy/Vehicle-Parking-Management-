@@ -48,7 +48,7 @@ def token_required(f):
         
         if not token:
             return jsonify({'message': 'Token is missing', 'error': 'unauthorized'}), 401
-        
+
         try:
             # Remove 'Bearer ' prefix if present
             if token.startswith('Bearer '):
@@ -127,8 +127,7 @@ def register():
         email=data['email'],
         username=data.get('username', data['email'].split('@')[0]),
         password=hash_password(data['password']),
-        fs_uniquifier=str(uuid.uuid4()),
-        active=True
+        fs_uniquifier=str(uuid.uuid4())
     )
     new_user.roles.append(user_role)
     
@@ -177,13 +176,6 @@ def login():
         return jsonify({
             'message': 'Invalid email or password',
             'error': 'invalid_credentials'
-        }), 401
-    
-    # Check if user is active
-    if not user.active:
-        return jsonify({
-            'message': 'User account is inactive',
-            'error': 'inactive_account'
         }), 401
     
     # Generate token
@@ -435,7 +427,6 @@ def get_users(current_user):
             'id': user.id,
             'email': user.email,
             'username': user.username,
-            'active': user.active,
             'roles': [role.name for role in user.roles],
             'total_bookings': Booking.query.filter_by(user_id=user.id).count(),
             'active_bookings': Booking.query.filter_by(user_id=user.id, status='Active').count()
@@ -587,6 +578,80 @@ def get_user_stats(current_user):
     }), 200
 
 # ==========================================
+# CSV Export Endpoint - Milestone 8
+# ==========================================
+
+@api_bp.route('/api/export', methods=['GET'])
+@token_required
+def trigger_export(current_user):
+    """Trigger CSV export of user's bookings (async with Celery)"""
+    try:
+        from tasks import export_user_bookings
+        
+        # Trigger async task
+        task = export_user_bookings.delay(current_user.id)
+        
+        return jsonify({
+            'message': 'Export started! You will be notified when ready.',
+            'task_id': task.id,
+            'status': 'processing'
+        }), 202
+        
+    except Exception as e:
+        # Fallback: synchronous export if Celery not available
+        print(f"⚠️  Celery not available, performing synchronous export: {e}")
+        
+        from models import Booking, ParkingSpot, ParkingLot
+        import csv
+        from io import StringIO
+        
+        bookings = Booking.query.filter_by(user_id=current_user.id).order_by(
+            Booking.start_time.desc()
+        ).all()
+        
+        output = StringIO()
+        writer = csv.writer(output)
+        
+        writer.writerow([
+            'Booking ID', 'Parking Lot', 'Spot Number', 'Type',
+            'Start Time', 'End Time', 'Duration (hours)', 'Cost ($)', 'Status'
+        ])
+        
+        for booking in bookings:
+            spot = ParkingSpot.query.get(booking.spot_id)
+            lot = ParkingLot.query.get(spot.lot_id)
+            
+            if booking.end_time:
+                duration = (booking.end_time - booking.start_time).total_seconds() / 3600
+            elif booking.reserved_start and booking.reserved_end:
+                duration = (booking.reserved_end - booking.reserved_start).total_seconds() / 3600
+            else:
+                duration = 'Ongoing'
+            
+            writer.writerow([
+                booking.id, lot.name, spot.spot_number, booking.booking_type.capitalize(),
+                booking.start_time.strftime('%Y-%m-%d %H:%M:%S'),
+                booking.end_time.strftime('%Y-%m-%d %H:%M:%S') if booking.end_time else 'N/A',
+                f"{duration:.2f}" if isinstance(duration, float) else duration,
+                f"{booking.total_cost:.2f}", booking.status
+            ])
+        
+        import os
+        from datetime import datetime
+        os.makedirs('exports', exist_ok=True)
+        filename = f"exports/bookings_{current_user.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        
+        with open(filename, 'w', newline='') as f:
+            f.write(output.getvalue())
+        
+        return jsonify({
+            'message': 'Export completed!',
+            'filename': filename,
+            'total_bookings': len(bookings),
+            'download_url': f'/exports/{os.path.basename(filename)}'
+        }), 200
+
+# ==========================================
 # Booking Endpoints (User) - Milestone 4
 # ==========================================
 
@@ -727,6 +792,13 @@ def book_spot(current_user):
             cache.delete('all_lots')
             cache.delete(f'spots_lot_{lot.id}')
         
+        # Send confirmation email (async)
+        try:
+            from tasks import send_booking_confirmation
+            send_booking_confirmation.delay(booking.id)
+        except Exception as e:
+            print(f"⚠️  Failed to queue confirmation email: {e}")
+        
         return jsonify({
             'message': f'Successfully reserved Spot #{target_spot.spot_number}',
             'booking': {
@@ -775,6 +847,18 @@ def book_spot(current_user):
         
         db.session.add(booking)
         db.session.commit()
+        
+        # Invalidate cache
+        if cache:
+            cache.delete('all_lots')
+            cache.delete(f'spots_lot_{lot.id}')
+        
+        # Send confirmation email (async)
+        try:
+            from tasks import send_booking_confirmation
+            send_booking_confirmation.delay(booking.id)
+        except Exception as e:
+            print(f"⚠️  Failed to queue confirmation email: {e}")
         
         return jsonify({
             'message': f'Successfully booked Spot #{target_spot.spot_number}',
@@ -874,4 +958,54 @@ def get_bookings(current_user):
         })
     
     return jsonify({'bookings': result}), 200
+
+# ==========================================
+# Admin Email Notification Endpoints
+# ==========================================
+
+@api_bp.route('/api/admin/send-daily-reminder', methods=['POST'])
+@token_required
+@admin_required
+def trigger_daily_reminder(current_user):
+    """Manually trigger daily reminder email task (Admin only)"""
+    try:
+        from tasks import send_daily_reminder
+        
+        # Trigger async task
+        task = send_daily_reminder.delay()
+        
+        return jsonify({
+            'message': '📧 Daily reminder emails queued! Inactive users will receive emails shortly.',
+            'task_id': task.id,
+            'status': 'processing'
+        }), 202
+        
+    except Exception as e:
+        return jsonify({
+            'message': f'Failed to trigger daily reminder: {str(e)}',
+            'error': 'task_failed'
+        }), 500
+
+@api_bp.route('/api/admin/send-monthly-report', methods=['POST'])
+@token_required
+@admin_required
+def trigger_monthly_report(current_user):
+    """Manually trigger monthly report email task (Admin only)"""
+    try:
+        from tasks import send_monthly_report
+        
+        # Trigger async task
+        task = send_monthly_report.delay()
+        
+        return jsonify({
+            'message': '📊 Monthly report emails queued! Users will receive their reports shortly.',
+            'task_id': task.id,
+            'status': 'processing'
+        }), 202
+        
+    except Exception as e:
+        return jsonify({
+            'message': f'Failed to trigger monthly report: {str(e)}',
+            'error': 'task_failed'
+        }), 500
 
