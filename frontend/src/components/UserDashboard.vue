@@ -525,6 +525,10 @@ export default {
               display: true,
               position: 'left',
               beginAtZero: true,
+              ticks: {
+                precision: 0,
+                stepSize: 1
+              },
               title: {
                 display: true,
                 text: 'Number of Bookings'
@@ -535,6 +539,7 @@ export default {
               display: true,
               position: 'right',
               beginAtZero: true,
+              suggestedMax: Math.max(...monthlyData.map(item => item.spending || 0), 10) * 1.2,
               grid: {
                 drawOnChartArea: false
               },
@@ -544,7 +549,7 @@ export default {
               },
               ticks: {
                 callback: function(value) {
-                  return '₹' + value.toFixed(2)
+                  return '₹' + value.toFixed(0)
                 }
               }
             }

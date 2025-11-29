@@ -567,9 +567,10 @@ export default {
           scales: {
             y: {
               beginAtZero: true,
+              suggestedMax: Math.max(...revenueData.map(item => item.revenue || 0), 10) * 1.2,
               ticks: {
                 callback: function(value) {
-                  return '₹' + value.toFixed(2)
+                  return '₹' + value.toFixed(0)
                 }
               }
             }
