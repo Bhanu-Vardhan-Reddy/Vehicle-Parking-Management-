@@ -30,7 +30,7 @@
           <div class="card bg-primary text-white">
             <div class="card-body">
               <h5 class="card-title">Total Revenue</h5>
-              <h2>${{ analyticsStats.total_revenue?.toFixed(2) || '0.00' }}</h2>
+              <h2>₹{{ analyticsStats.total_revenue?.toFixed(2) || '0.00' }}</h2>
             </div>
           </div>
         </div>
@@ -180,7 +180,7 @@
               >
             </div>
             <div class="col-md-3">
-              <label class="form-label">Price per Hour ($)</label>
+              <label class="form-label">Price per Hour (₹)</label>
               <input 
                 type="number" 
                 step="0.01" 
@@ -225,7 +225,7 @@
                 </div>
                 <div class="card-body">
                   <p><strong>Capacity:</strong> {{ lot.capacity }} spots</p>
-                  <p><strong>Price:</strong> ${{ lot.price_per_hour }}/hour</p>
+                  <p><strong>Price:</strong> ₹{{ lot.price_per_hour }}/hour</p>
                   <p>
                     <strong>Available:</strong> 
                     <span class="badge bg-success">{{ lot.available_spots }}</span>
@@ -362,7 +362,7 @@
                         calculateDuration(booking.reserved_start, booking.reserved_end) : 'Ongoing')
                     }}
                   </td>
-                  <td><strong>${{ booking.total_cost.toFixed(2) }}</strong></td>
+                  <td><strong>₹{{ booking.total_cost.toFixed(2) }}</strong></td>
                   <td>
                     <span 
                       class="badge" 
@@ -436,7 +436,7 @@ export default {
       bookings: [],
       analyticsStats: {},
       selectedLot: null,
-      bookingFilter: '',  // '', 'Active', 'Reserved', 'Completed'
+      bookingFilter: '',
       revenueChartInstance: null,
       
       newLot: {
@@ -449,7 +449,7 @@ export default {
       success: null,
       loading: false,
       emailLoading: false,
-      emailTask: null  // 'daily' or 'monthly'
+      emailTask: null
     }
   },
   
@@ -522,7 +522,6 @@ export default {
         })
         this.analyticsStats = response.data
         
-        // Wait for next tick to ensure canvas is rendered
         this.$nextTick(() => {
           this.renderRevenueChart()
         })
@@ -534,7 +533,6 @@ export default {
     renderRevenueChart() {
       if (!this.$refs.revenueChart) return
       
-      // Destroy existing chart
       if (this.revenueChartInstance) {
         this.revenueChartInstance.destroy()
       }
@@ -547,7 +545,7 @@ export default {
         data: {
           labels: revenueData.map(item => item.lot_name),
           datasets: [{
-            label: 'Revenue ($)',
+            label: 'Revenue (₹)',
             data: revenueData.map(item => item.revenue),
             backgroundColor: 'rgba(54, 162, 235, 0.6)',
             borderColor: 'rgba(54, 162, 235, 1)',
@@ -571,7 +569,7 @@ export default {
               beginAtZero: true,
               ticks: {
                 callback: function(value) {
-                  return '$' + value.toFixed(2)
+                  return '₹' + value.toFixed(2)
                 }
               }
             }
@@ -691,7 +689,6 @@ export default {
           this.success += ` Task ID: ${response.data.task_id}`
         }
         
-        // Show additional info if available
         if (response.data.message) {
           this.success = response.data.message
         }
@@ -724,7 +721,6 @@ export default {
           this.success += ` Task ID: ${response.data.task_id}`
         }
         
-        // Show additional info if available
         if (response.data.message) {
           this.success = response.data.message
         }

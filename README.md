@@ -263,7 +263,7 @@ ADMIN_EMAIL = "admin-email@gmail.com"
 ### Admin Login Flow
 
 ```
-1. Admin logs in with credentials (admin@parking.com / admin123)
+1. Admin logs in with credentials (nbhanuvardhanreddy@gmail.com / admin123)
 2. Backend validates and returns JWT token with 'admin' role
 3. Frontend stores token and redirects to Admin Dashboard
 ```
@@ -626,7 +626,7 @@ Options:
 ### Default Admin Credentials
 
 ```
-Email: admin@parking.com
+Email: nbhanuvardhanreddy@gmail.com
 Password: admin123
 ```
 

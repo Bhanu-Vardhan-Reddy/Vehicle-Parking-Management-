@@ -54,42 +54,14 @@
           <div class="card bg-info text-white">
             <div class="card-body">
               <h5 class="card-title">Total Spent</h5>
-              <h2>${{ stats.totalSpent }}</h2>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Active Booking Card -->
-      <div v-if="activeBooking" class="card mb-4 border-warning">
-        <div class="card-header bg-warning">
-          <h4 class="m-0">🅿️ Active Booking</h4>
-        </div>
-        <div class="card-body">
-          <div class="row">
-            <div class="col-md-6">
-              <p><strong>Parking Lot:</strong> {{ activeBooking.lot_name }}</p>
-              <p><strong>Spot Number:</strong> #{{ activeBooking.spot_number }}</p>
-              <p><strong>Start Time:</strong> {{ formatDateTime(activeBooking.start_time) }}</p>
-              <p><strong>Price:</strong> ${{ activeBooking.price_per_hour }}/hour</p>
-            </div>
-            <div class="col-md-6">
-              <p><strong>Duration:</strong> {{ calculateDuration(activeBooking.start_time) }}</p>
-              <p><strong>Estimated Cost:</strong> ${{ estimateCost(activeBooking) }}</p>
-              <button 
-                class="btn btn-danger btn-lg w-100 mt-3" 
-                @click="confirmRelease"
-                :disabled="loading"
-              >
-                {{ loading ? 'Releasing...' : 'Release Spot' }}
-              </button>
+              <h2>₹{{ stats.totalSpent }}</h2>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Book New Spot -->
-      <div v-else class="card mb-4">
+      <div class="card mb-4">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
           <h4 class="m-0">Book or Reserve a Parking Spot</h4>
           <div class="btn-group" role="group">
@@ -131,7 +103,7 @@
                   :value="lot.id"
                   :disabled="lot.available_spots === 0 && bookingType === 'immediate'"
                 >
-                  {{ lot.name }} - ${{ lot.price_per_hour }}/hr 
+                  {{ lot.name }} - ₹{{ lot.price_per_hour }}/hr 
                   <template v-if="bookingType === 'immediate'">
                     ({{ lot.available_spots }} spots available)
                   </template>
@@ -164,7 +136,7 @@
               <div class="alert alert-info">
                 <strong>Duration:</strong> {{ calculateReservationDuration() }}
                 <br>
-                <strong>Estimated Cost:</strong> ${{ calculateReservationCost() }}
+                <strong>Estimated Cost:</strong> ₹{{ calculateReservationCost() }}
               </div>
             </div>
           </div>
@@ -253,6 +225,34 @@
         </div>
       </div>
 
+      <!-- Active Booking Card -->
+      <div v-if="activeBooking" class="card mb-4 border-warning">
+        <div class="card-header bg-warning">
+          <h4 class="m-0">🅿️ Active Booking</h4>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <p><strong>Parking Lot:</strong> {{ activeBooking.lot_name }}</p>
+              <p><strong>Spot Number:</strong> #{{ activeBooking.spot_number }}</p>
+              <p><strong>Start Time:</strong> {{ formatDateTime(activeBooking.start_time) }}</p>
+              <p><strong>Price:</strong> ₹{{ activeBooking.price_per_hour }}/hour</p>
+            </div>
+            <div class="col-md-6">
+              <p><strong>Duration:</strong> {{ calculateDuration(activeBooking.start_time) }}</p>
+              <p><strong>Estimated Cost:</strong> ₹{{ estimateCost(activeBooking) }}</p>
+              <button 
+                class="btn btn-danger btn-lg w-100 mt-3" 
+                @click="confirmRelease"
+                :disabled="loading"
+              >
+                {{ loading ? 'Releasing...' : 'Release Spot' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Analytics Chart -->
       <div class="card mb-4">
         <div class="card-header">
@@ -316,7 +316,7 @@
                     }}
                   </td>
                   <td>
-                    <strong>${{ booking.total_cost.toFixed(2) }}</strong>
+                    <strong>₹{{ booking.total_cost.toFixed(2) }}</strong>
                   </td>
                   <td>
                     <span 
@@ -358,13 +358,12 @@ export default {
       spots: [],
       userStats: {},
       
-      bookingType: 'immediate',  // immediate or reserved
+      bookingType: 'immediate',
       selectedLotId: '',
       selectedSpot: null,
       showSpots: false,
       monthlyChartInstance: null,
       
-      // Reservation fields
       reservedStart: '',
       reservedEnd: '',
       
@@ -423,7 +422,6 @@ export default {
     this.fetchBookings()
     this.fetchUserStats()
     
-    // Update current time every second
     setInterval(() => {
       this.currentTime = new Date()
     }, 1000)
@@ -465,7 +463,6 @@ export default {
         })
         this.userStats = response.data
         
-        // Wait for next tick to ensure canvas is rendered
         this.$nextTick(() => {
           this.renderMonthlyChart()
         })
@@ -477,7 +474,6 @@ export default {
     renderMonthlyChart() {
       if (!this.$refs.monthlyChart) return
       
-      // Destroy existing chart
       if (this.monthlyChartInstance) {
         this.monthlyChartInstance.destroy()
       }
@@ -500,7 +496,7 @@ export default {
               yAxisID: 'y'
             },
             {
-              label: 'Spending ($)',
+              label: 'Spending (₹)',
               data: monthlyData.map(item => item.spending),
               borderColor: 'rgba(255, 99, 132, 1)',
               backgroundColor: 'rgba(255, 99, 132, 0.2)',
@@ -544,11 +540,11 @@ export default {
               },
               title: {
                 display: true,
-                text: 'Spending ($)'
+                text: 'Spending (₹)'
               },
               ticks: {
                 callback: function(value) {
-                  return '$' + value.toFixed(2)
+                  return '₹' + value.toFixed(2)
                 }
               }
             }
@@ -590,10 +586,8 @@ export default {
       if (this.bookingType === 'immediate') {
         return spot.status === 'Available'
       } else {
-        // For reservations, check if there's a conflict
         if (!this.reservedStart || !this.reservedEnd) return true
         
-        // If spot has reservations, check for conflicts
         return spot.reservations.length === 0 || !this.hasTimeConflict(spot)
       }
     },
@@ -676,7 +670,6 @@ export default {
       } catch (err) {
         this.error = err.response?.data?.message || 'Failed to complete booking'
         
-        // Show conflict details if available
         if (err.response?.data?.conflict) {
           const conflict = err.response.data.conflict
           this.error += ` (Conflict: ${this.formatDateTime(conflict.start)} - ${this.formatDateTime(conflict.end)})`
@@ -688,7 +681,7 @@ export default {
     
     confirmRelease() {
       const cost = this.estimateCost(this.activeBooking)
-      if (confirm(`Release this spot?\n\nEstimated Cost: $${cost}\n\nThis cannot be undone.`)) {
+      if (confirm(`Release this spot?\n\nEstimated Cost: ₹${cost}\n\nThis cannot be undone.`)) {
         this.releaseSpot()
       }
     },
@@ -705,7 +698,7 @@ export default {
           { headers: { Authorization: `Bearer ${this.token}` } }
         )
         
-        this.success = `${response.data.message} - Total Cost: $${response.data.booking.total_cost}`
+        this.success = `${response.data.message} - Total Cost: ₹${response.data.booking.total_cost}`
         await this.fetchLots()
         await this.fetchBookings()
         
@@ -804,7 +797,6 @@ export default {
           this.success += ` (Task ID: ${response.data.task_id})`
         }
         
-        // Refresh bookings to ensure latest data
         this.fetchBookings()
         
       } catch (err) {

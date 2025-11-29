@@ -1,21 +1,15 @@
-"""
-Database Models for Vehicle Parking System
-Milestone 1: Database Models and Schema
-"""
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import UserMixin, RoleMixin
 from datetime import datetime
 
 db = SQLAlchemy()
 
-# Association table for User-Role many-to-many relationship
 roles_users = db.Table('roles_users',
     db.Column('user_id', db.Integer(), db.ForeignKey('user.id')),
     db.Column('role_id', db.Integer(), db.ForeignKey('role.id'))
 )
 
 class Role(db.Model, RoleMixin):
-    """Role model - admin or user"""
     __tablename__ = 'role'
     
     id = db.Column(db.Integer(), primary_key=True)
@@ -23,7 +17,6 @@ class Role(db.Model, RoleMixin):
     description = db.Column(db.String(255))
 
 class User(db.Model, UserMixin):
-    """User model - for both admin and regular users"""
     __tablename__ = 'user'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -32,17 +25,18 @@ class User(db.Model, UserMixin):
     password = db.Column(db.String(255), nullable=False)
     fs_uniquifier = db.Column(db.String(255), unique=True, nullable=False)
     
-    # Relationships
     roles = db.relationship('Role', secondary=roles_users, backref=db.backref('users', lazy='dynamic'))
     bookings = db.relationship('Booking', backref='user', lazy=True, cascade='all, delete-orphan')
     
     @property
     def active(self):
-        """Flask-Security compatibility - all users are active"""
         return True
+    
+    @active.setter
+    def active(self, value):
+        pass
 
 class ParkingLot(db.Model):
-    """Parking Lot model - represents a parking facility"""
     __tablename__ = 'parking_lot'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -50,23 +44,19 @@ class ParkingLot(db.Model):
     capacity = db.Column(db.Integer, nullable=False)
     price_per_hour = db.Column(db.Float, nullable=False)
     
-    # Relationships
     spots = db.relationship('ParkingSpot', backref='lot', lazy=True, cascade='all, delete-orphan')
 
 class ParkingSpot(db.Model):
-    """Parking Spot model - individual parking space"""
     __tablename__ = 'parking_spot'
     
     id = db.Column(db.Integer, primary_key=True)
     spot_number = db.Column(db.Integer, nullable=False)
-    status = db.Column(db.String(20), default='Available', nullable=False)  # Available or Occupied
+    status = db.Column(db.String(20), default='Available', nullable=False)
     lot_id = db.Column(db.Integer, db.ForeignKey('parking_lot.id'), nullable=False)
     
-    # Relationships
     bookings = db.relationship('Booking', backref='spot', lazy=True)
 
 class Booking(db.Model):
-    """Booking model - reservation history"""
     __tablename__ = 'booking'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -75,9 +65,8 @@ class Booking(db.Model):
     start_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     end_time = db.Column(db.DateTime, nullable=True)
     total_cost = db.Column(db.Float, default=0.0)
-    status = db.Column(db.String(20), default='Active', nullable=False)  # Active, Completed, Reserved
-    booking_type = db.Column(db.String(20), default='immediate')  # immediate, reserved
+    status = db.Column(db.String(20), default='Active', nullable=False)
+    booking_type = db.Column(db.String(20), default='immediate')
     
-    # For reserved bookings
     reserved_start = db.Column(db.DateTime, nullable=True)
     reserved_end = db.Column(db.DateTime, nullable=True)

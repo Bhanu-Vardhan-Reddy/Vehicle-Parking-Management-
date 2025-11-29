@@ -8,8 +8,8 @@ def email_alert(subject, body, to, html=''):
     msg['From'] = "nbhanuvardhanreddy@gmail.com"
 
     if html:
-        msg.set_content(body)  # Fallback plain text
-        msg.add_alternative(html, subtype='html')  # ✅ HTML part
+        msg.set_content(body)
+        msg.add_alternative(html, subtype='html')
     else:
         msg.set_content(body)
 
@@ -21,7 +21,6 @@ def email_alert(subject, body, to, html=''):
     server.login(user, password)
     server.send_message(msg)
     server.quit()
-    print("message sent")
 
 if __name__ == '__main__':
     email_alert(

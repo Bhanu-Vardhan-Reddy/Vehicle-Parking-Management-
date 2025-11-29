@@ -98,9 +98,9 @@ security = Security(app, user_datastore)
 # Create admin user on startup
 with app.app_context():
     db.create_all()
-    if not user_datastore.find_user(email="admin@parking.com"):
+    if not user_datastore.find_user(email="nbhanuvardhanreddy@gmail.com"):
         user_datastore.create_user(
-            email="admin@parking.com",
+            email="nbhanuvardhanreddy@gmail.com",
             password=hash_password("admin123"),
             roles=['admin']
         )
@@ -559,7 +559,7 @@ from models import ParkingLot, ParkingSpot
 with app.app_context():
     # Create admin
     admin = user_datastore.create_user(
-        email="admin@parking.com",
+        email="nbhanuvardhanreddy@gmail.com",
         password=hash_password("admin123"),
         roles=['admin']
     )

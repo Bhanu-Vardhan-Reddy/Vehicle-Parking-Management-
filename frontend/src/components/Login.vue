@@ -11,7 +11,6 @@
               {{ isRegistering ? 'Register' : 'Login' }}
             </h5>
             
-            <!-- Error/Success Messages -->
             <div v-if="error" class="alert alert-danger" role="alert">
               {{ error }}
             </div>
@@ -19,7 +18,6 @@
               {{ success }}
             </div>
             
-            <!-- Login/Register Form -->
             <form @submit.prevent="handleSubmit">
               <div class="mb-3">
                 <label class="form-label">Email</label>
@@ -58,18 +56,16 @@
               </button>
             </form>
             
-            <!-- Toggle Login/Register -->
             <div class="text-center">
               <button class="btn btn-link" @click="toggleMode">
                 {{ isRegistering ? 'Already have an account? Login' : 'Need an account? Register' }}
               </button>
             </div>
             
-            <!-- Default Admin Hint -->
             <div class="mt-4 p-3 bg-light rounded" v-if="!isRegistering">
               <small class="text-muted">
                 <strong>Default Admin:</strong><br>
-                Email: admin@parking.com<br>
+                Email: nbhanuvardhanreddy@gmail.com<br>
                 Password: admin123
               </small>
             </div>
@@ -112,13 +108,11 @@ export default {
         const endpoint = this.isRegistering ? '/auth/register' : '/auth/login'
         const response = await axios.post(endpoint, this.form)
         
-        // Store token and user info
         localStorage.setItem('token', response.data.token)
         localStorage.setItem('user', JSON.stringify(response.data.user))
         
         this.success = response.data.message
         
-        // Redirect based on role
         setTimeout(() => {
           if (response.data.user.roles.includes('admin')) {
             this.$router.push('/admin')
@@ -134,4 +128,3 @@ export default {
   }
 }
 </script>
-

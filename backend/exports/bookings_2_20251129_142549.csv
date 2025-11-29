@@ -1,0 +1,5 @@
+Booking ID,Parking Lot,Spot Number,Type,Start Time,End Time,Duration (hours),Cost ($),Status
+3,park20,1,Immediate,2025-11-29 14:25:04,2025-11-29 14:25:08,0.00,40.00,Completed
+2,park20,5,Immediate,2025-11-29 13:59:45,2025-11-29 14:00:06,0.01,40.00,Completed
+1,park20,16,Immediate,2025-11-29 13:47:20,2025-11-29 13:48:09,0.01,40.00,Completed
+4,park20,1,Reserved,2025-11-29 09:00:00,N/A,167.92,6716.67,Reserved
