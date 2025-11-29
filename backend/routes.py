@@ -285,7 +285,7 @@ def update_lot(current_user, lot_id):
 @token_required
 @admin_required
 def delete_lot(current_user, lot_id):
-    from models import ParkingLot
+    from models import ParkingLot, Booking
     
     lot = ParkingLot.query.get(lot_id)
     if not lot:
@@ -294,6 +294,10 @@ def delete_lot(current_user, lot_id):
     occupied_spots = sum(1 for spot in lot.spots if spot.status == 'Occupied')
     if occupied_spots > 0:
         return jsonify({'message': f'Cannot delete lot with {occupied_spots} occupied spot(s)', 'error': 'spots_occupied'}), 400
+    
+    spot_ids = [spot.id for spot in lot.spots]
+    if spot_ids:
+        Booking.query.filter(Booking.spot_id.in_(spot_ids)).delete(synchronize_session=False)
     
     db.session.delete(lot)
     db.session.commit()

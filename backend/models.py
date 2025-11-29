@@ -54,7 +54,7 @@ class ParkingSpot(db.Model):
     status = db.Column(db.String(20), default='Available', nullable=False)
     lot_id = db.Column(db.Integer, db.ForeignKey('parking_lot.id'), nullable=False)
     
-    bookings = db.relationship('Booking', backref='spot', lazy=True)
+    bookings = db.relationship('Booking', backref='spot', lazy=True, cascade='all, delete-orphan')
 
 class Booking(db.Model):
     __tablename__ = 'booking'
