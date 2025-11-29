@@ -209,6 +209,9 @@ brew install redis                  # macOS
 
 # Start Redis
 redis-server
+
+# Clear Redis (if needed for fresh start)
+redis-cli FLUSHALL
 ```
 
 ### 5. Celery Worker Setup
@@ -462,7 +465,7 @@ beat_schedule = {
 | GET | `/api/users` | List all users | Yes | Admin |
 | POST | `/api/admin/send-daily-reminder` | Trigger daily reminders | Yes | Admin |
 | POST | `/api/admin/send-monthly-report` | Trigger monthly reports | Yes | Admin |
-| POST | `/api/admin/export-all-data` | Export all data to email | Yes | Admin |
+| GET | `/api/admin/export-all` | Export all data to email | Yes | Admin |
 
 ### Export Endpoints
 
@@ -562,7 +565,7 @@ project_2/
 │   ├── tasks.py                # Celery tasks (email jobs)
 │   ├── celery_config.py        # Celery configuration
 │   ├── celery_worker.py        # Celery worker initialization
-│   ├── asynctask_demo.py       # Email testing script
+│   ├── email_notif.py          # Email utility functions
 │   ├── requirements.txt        # Python dependencies
 │   └── instance/
 │       └── parking.db          # SQLite database
@@ -609,19 +612,27 @@ curl -X POST http://localhost:5000/auth/login \
 
 #### Test Email System
 
-Run the comprehensive email demo:
+Use the Admin Dashboard to trigger email tasks:
+
+1. **Daily Reminders**: Click "Send Daily Reminders" button
+2. **Monthly Reports**: Click "Send Monthly Reports" button
+3. **Export All Data**: Click "Export All Data" button
+
+Or trigger via API:
 
 ```bash
-cd backend
-python asynctask_demo.py --all
-```
+# Trigger daily reminders (requires admin token)
+curl -X POST http://localhost:5000/api/admin/send-daily-reminder \
+  -H "Authorization: Bearer <admin-token>"
 
-Options:
-- `--reminders` - Send daily reminders only
-- `--reports` - Send monthly reports only
-- `--exports` - Send CSV exports only
-- `--all` - Send all email types
-- `--test` - Use test mode (doesn't actually send emails)
+# Trigger monthly reports
+curl -X POST http://localhost:5000/api/admin/send-monthly-report \
+  -H "Authorization: Bearer <admin-token>"
+
+# Export all system data
+curl -X GET http://localhost:5000/api/admin/export-all \
+  -H "Authorization: Bearer <admin-token>"
+```
 
 ### Default Admin Credentials
 
@@ -659,14 +670,16 @@ result_backend = 'redis://localhost:6379/0'
 
 ### Cost Calculation
 
+Currency is displayed as **Rs.** (Indian Rupees).
+
 ```python
 # For instant bookings (released)
 duration_hours = (end_time - start_time).total_seconds() / 3600
-total_cost = duration_hours * lot.price_per_hour
+total_cost = duration_hours * lot.price_per_hour  # Rs.
 
 # For reserved bookings (completed)
 duration_hours = (reserved_end - reserved_start).total_seconds() / 3600
-total_cost = duration_hours * lot.price_per_hour
+total_cost = duration_hours * lot.price_per_hour  # Rs.
 ```
 
 ### Spot Allocation
@@ -731,6 +744,20 @@ Error: database is locked
 Solution: Close all connections and restart Flask server
 ```
 
+**6. Celery Task State Corruption**
+```
+Error: ValueError: Exception information must include the exception type
+Solution: Flush Redis to clear corrupted task state
+redis-cli FLUSHALL
+Then restart Celery worker
+```
+
+**7. Currency Symbol Encoding Error**
+```
+Error: 'charmap' codec can't encode character
+Solution: All CSV files use UTF-8 encoding. Currency uses "Rs." instead of symbols.
+```
+
 ---
 
 ## 📈 Performance Considerations
@@ -759,7 +786,7 @@ Solution: Close all connections and restart Flask server
 For issues or questions:
 - Check the [Troubleshooting](#troubleshooting) section
 - Review the [API Documentation](#api-documentation)
-- Test email system with `asynctask_demo.py`
+- Test email system via Admin Dashboard buttons
 
 ---
 
