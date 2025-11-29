@@ -14,7 +14,7 @@ build/
 *.swp
 *.swo
 *~
-
+instance/
 # OS
 .DS_Store
 Thumbs.db
