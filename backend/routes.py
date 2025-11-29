@@ -439,7 +439,7 @@ def trigger_export(current_user):
         os.makedirs('exports', exist_ok=True)
         filename = f"exports/bookings_{current_user.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         
-        with open(filename, 'w', newline='') as f:
+        with open(filename, 'w', newline='', encoding='utf-8') as f:
             f.write(output.getvalue())
         
         return jsonify({'message': 'Export completed!', 'filename': filename, 'total_bookings': len(bookings)}), 200
@@ -721,7 +721,7 @@ def trigger_monthly_report(current_user):
     except Exception as e:
         return jsonify({'message': f'Failed: {str(e)}', 'error': 'task_failed'}), 500
 
-@api_bp.route('/api/admin/export-all', methods=['GET'])
+@api_bp.route('/api/admin/export-all', methods=['POST'])
 @token_required
 @admin_required
 def trigger_admin_export(current_user):

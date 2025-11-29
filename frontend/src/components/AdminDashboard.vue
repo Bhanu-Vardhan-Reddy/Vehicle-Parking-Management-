@@ -745,7 +745,7 @@ export default {
       this.emailTask = 'export'
       
       try {
-        const response = await axios.get('/api/admin/export-all', {
+        const response = await axios.post('/api/admin/export-all', {}, {
           headers: { Authorization: `Bearer ${this.token}` }
         })
         

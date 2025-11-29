@@ -465,7 +465,7 @@ beat_schedule = {
 | GET | `/api/users` | List all users | Yes | Admin |
 | POST | `/api/admin/send-daily-reminder` | Trigger daily reminders | Yes | Admin |
 | POST | `/api/admin/send-monthly-report` | Trigger monthly reports | Yes | Admin |
-| GET | `/api/admin/export-all` | Export all data to email | Yes | Admin |
+| POST | `/api/admin/export-all` | Export all data to email | Yes | Admin |
 
 ### Export Endpoints
 
@@ -630,7 +630,7 @@ curl -X POST http://localhost:5000/api/admin/send-monthly-report \
   -H "Authorization: Bearer <admin-token>"
 
 # Export all system data
-curl -X GET http://localhost:5000/api/admin/export-all \
+curl -X POST http://localhost:5000/api/admin/export-all \
   -H "Authorization: Bearer <admin-token>"
 ```
 

@@ -9,10 +9,16 @@ from io import StringIO
 
 ADMIN_EMAIL = "nbhanuvardhanreddy@gmail.com"
 
+def safe_update_state(task, state, meta):
+    try:
+        task.update_state(state=state, meta=meta)
+    except Exception:
+        pass
+
 @celery.task(bind=True, name='tasks.send_daily_reminder')
 def send_daily_reminder(self):
     try:
-        print("Starting daily reminder task")
+        safe_update_state(self, 'PROGRESS', {'message': 'Starting daily reminder task'})
         
         seven_days_ago = datetime.now() - timedelta(days=7)
         
@@ -75,14 +81,14 @@ Parking Management Team"""
             'emails': inactive_users
         }
     except Exception as e:
-        print(f"Daily reminder failed: {str(e)}")
+        safe_update_state(self, 'FAILURE', {'error': str(e)})
         return {'status': 'error', 'message': str(e)}
 
 
 @celery.task(bind=True, name='tasks.send_monthly_report')
 def send_monthly_report(self):
     try:
-        print("Starting monthly report generation")
+        safe_update_state(self, 'PROGRESS', {'message': 'Starting monthly report generation'})
         
         today = datetime.now()
         first_day_this_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -308,7 +314,7 @@ Parking Management System"""
             'emails': reports_sent
         }
     except Exception as e:
-        print(f"Monthly report failed: {str(e)}")
+        safe_update_state(self, 'FAILURE', {'error': str(e)})
         return {'status': 'error', 'message': str(e)}
 
 
@@ -316,7 +322,7 @@ Parking Management System"""
 def export_user_bookings(self, user_id):
     try:
         user_id = int(user_id)
-        print(f"Starting CSV generation for user {user_id}")
+        safe_update_state(self, 'PROGRESS', {'message': f'Starting CSV generation for user {user_id}'})
         
         user = User.query.get(user_id)
         if not user:
@@ -452,14 +458,14 @@ Parking Management Team"""
                 'email_error': str(email_error)
             }
     except Exception as e:
-        print(f"Export failed for user {user_id}: {str(e)}")
+        safe_update_state(self, 'FAILURE', {'error': str(e)})
         return {'status': 'error', 'user_id': user_id, 'message': str(e)}
 
 
 @celery.task(bind=True, name='tasks.send_booking_confirmation')
 def send_booking_confirmation(self, booking_id):
     try:
-        print(f"Sending booking confirmation for booking {booking_id}")
+        safe_update_state(self, 'PROGRESS', {'message': f'Sending booking confirmation for booking {booking_id}'})
         
         booking = Booking.query.get(booking_id)
         if not booking:
@@ -630,14 +636,14 @@ Parking Management Team"""
             }
             
     except Exception as e:
-        print(f"Booking confirmation failed: {str(e)}")
+        safe_update_state(self, 'FAILURE', {'error': str(e)})
         return {'status': 'error', 'message': str(e)}
 
 
 @celery.task(bind=True, name='tasks.send_daily_admin_report')
 def send_daily_admin_report(self):
     try:
-        print("Generating daily admin report")
+        safe_update_state(self, 'PROGRESS', {'message': 'Generating daily admin report'})
         
         admin_email = ADMIN_EMAIL
         
@@ -815,14 +821,14 @@ Parking Management System
             }
             
     except Exception as e:
-        print(f"Daily admin report failed: {str(e)}")
+        safe_update_state(self, 'FAILURE', {'error': str(e)})
         return {'status': 'error', 'message': str(e)}
 
 
 @celery.task(bind=True, name='tasks.export_admin_all_data')
 def export_admin_all_data(self):
     try:
-        print("Starting comprehensive data export")
+        safe_update_state(self, 'PROGRESS', {'message': 'Starting comprehensive data export'})
         
         admin_email = ADMIN_EMAIL
         
@@ -1039,5 +1045,5 @@ Parking Management System"""
                 'email_error': str(email_error)
             }
     except Exception as e:
-        print(f"Admin export failed: {str(e)}")
+        safe_update_state(self, 'FAILURE', {'error': str(e)})
         return {'status': 'error', 'message': str(e)}
