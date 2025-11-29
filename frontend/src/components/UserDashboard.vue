@@ -54,7 +54,7 @@
           <div class="card bg-info text-white">
             <div class="card-body">
               <h5 class="card-title">Total Spent</h5>
-              <h2>₹{{ stats.totalSpent }}</h2>
+              <h2>Rs.{{ stats.totalSpent }}</h2>
             </div>
           </div>
         </div>
@@ -103,7 +103,7 @@
                   :value="lot.id"
                   :disabled="lot.available_spots === 0 && bookingType === 'immediate'"
                 >
-                  {{ lot.name }} - ₹{{ lot.price_per_hour }}/hr 
+                  {{ lot.name }} - Rs.{{ lot.price_per_hour }}/hr 
                   <template v-if="bookingType === 'immediate'">
                     ({{ lot.available_spots }} spots available)
                   </template>
@@ -136,7 +136,7 @@
               <div class="alert alert-info">
                 <strong>Duration:</strong> {{ calculateReservationDuration() }}
                 <br>
-                <strong>Estimated Cost:</strong> ₹{{ calculateReservationCost() }}
+                <strong>Estimated Cost:</strong> Rs.{{ calculateReservationCost() }}
               </div>
             </div>
           </div>
@@ -236,11 +236,11 @@
               <p><strong>Parking Lot:</strong> {{ activeBooking.lot_name }}</p>
               <p><strong>Spot Number:</strong> #{{ activeBooking.spot_number }}</p>
               <p><strong>Start Time:</strong> {{ formatDateTime(activeBooking.start_time) }}</p>
-              <p><strong>Price:</strong> ₹{{ activeBooking.price_per_hour }}/hour</p>
+              <p><strong>Price:</strong> Rs.{{ activeBooking.price_per_hour }}/hour</p>
             </div>
             <div class="col-md-6">
               <p><strong>Duration:</strong> {{ calculateDuration(activeBooking.start_time) }}</p>
-              <p><strong>Estimated Cost:</strong> ₹{{ estimateCost(activeBooking) }}</p>
+              <p><strong>Estimated Cost:</strong> Rs.{{ estimateCost(activeBooking) }}</p>
               <button 
                 class="btn btn-danger btn-lg w-100 mt-3" 
                 @click="confirmRelease"
@@ -316,7 +316,7 @@
                     }}
                   </td>
                   <td>
-                    <strong>₹{{ booking.total_cost.toFixed(2) }}</strong>
+                    <strong>Rs.{{ booking.total_cost.toFixed(2) }}</strong>
                   </td>
                   <td>
                     <span 
@@ -496,7 +496,7 @@ export default {
               yAxisID: 'y'
             },
             {
-              label: 'Spending (₹)',
+              label: 'Spending (Rs.)',
               data: monthlyData.map(item => item.spending),
               borderColor: 'rgba(255, 99, 132, 1)',
               backgroundColor: 'rgba(255, 99, 132, 0.2)',
@@ -545,11 +545,11 @@ export default {
               },
               title: {
                 display: true,
-                text: 'Spending (₹)'
+                text: 'Spending (Rs.)'
               },
               ticks: {
                 callback: function(value) {
-                  return '₹' + value.toFixed(0)
+                  return 'Rs.' + value.toFixed(0)
                 }
               }
             }
@@ -686,7 +686,7 @@ export default {
     
     confirmRelease() {
       const cost = this.estimateCost(this.activeBooking)
-      if (confirm(`Release this spot?\n\nEstimated Cost: ₹${cost}\n\nThis cannot be undone.`)) {
+      if (confirm(`Release this spot?\n\nEstimated Cost: Rs.${cost}\n\nThis cannot be undone.`)) {
         this.releaseSpot()
       }
     },
@@ -703,7 +703,7 @@ export default {
           { headers: { Authorization: `Bearer ${this.token}` } }
         )
         
-        this.success = `${response.data.message} - Total Cost: ₹${response.data.booking.total_cost}`
+        this.success = `${response.data.message} - Total Cost: Rs.${response.data.booking.total_cost}`
         await this.fetchLots()
         await this.fetchBookings()
         

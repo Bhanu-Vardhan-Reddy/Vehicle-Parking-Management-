@@ -415,7 +415,7 @@ def trigger_export(current_user):
         
         output = StringIO()
         writer = csv.writer(output)
-        writer.writerow(['Booking ID', 'Parking Lot', 'Spot Number', 'Type', 'Start Time', 'End Time', 'Duration (hours)', 'Cost (₹)', 'Status'])
+        writer.writerow(['Booking ID', 'Parking Lot', 'Spot Number', 'Type', 'Start Time', 'End Time', 'Duration (hours)', 'Cost (Rs.)', 'Status'])
         
         for booking in bookings:
             spot = ParkingSpot.query.get(booking.spot_id)

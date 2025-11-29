@@ -30,7 +30,7 @@
           <div class="card bg-primary text-white">
             <div class="card-body">
               <h5 class="card-title">Total Revenue</h5>
-              <h2>₹{{ analyticsStats.total_revenue?.toFixed(2) || '0.00' }}</h2>
+              <h2>Rs.{{ analyticsStats.total_revenue?.toFixed(2) || '0.00' }}</h2>
             </div>
           </div>
         </div>
@@ -180,7 +180,7 @@
               >
             </div>
             <div class="col-md-3">
-              <label class="form-label">Price per Hour (₹)</label>
+              <label class="form-label">Price per Hour (Rs.)</label>
               <input 
                 type="number" 
                 step="0.01" 
@@ -225,7 +225,7 @@
                 </div>
                 <div class="card-body">
                   <p><strong>Capacity:</strong> {{ lot.capacity }} spots</p>
-                  <p><strong>Price:</strong> ₹{{ lot.price_per_hour }}/hour</p>
+                  <p><strong>Price:</strong> Rs.{{ lot.price_per_hour }}/hour</p>
                   <p>
                     <strong>Available:</strong> 
                     <span class="badge bg-success">{{ lot.available_spots }}</span>
@@ -362,7 +362,7 @@
                         calculateDuration(booking.reserved_start, booking.reserved_end) : 'Ongoing')
                     }}
                   </td>
-                  <td><strong>₹{{ booking.total_cost.toFixed(2) }}</strong></td>
+                  <td><strong>Rs.{{ booking.total_cost.toFixed(2) }}</strong></td>
                   <td>
                     <span 
                       class="badge" 
@@ -545,7 +545,7 @@ export default {
         data: {
           labels: revenueData.map(item => item.lot_name),
           datasets: [{
-            label: 'Revenue (₹)',
+            label: 'Revenue (Rs.)',
             data: revenueData.map(item => item.revenue),
             backgroundColor: 'rgba(54, 162, 235, 0.6)',
             borderColor: 'rgba(54, 162, 235, 1)',
@@ -570,7 +570,7 @@ export default {
               suggestedMax: Math.max(...revenueData.map(item => item.revenue || 0), 10) * 1.2,
               ticks: {
                 callback: function(value) {
-                  return '₹' + value.toFixed(0)
+                  return 'Rs.' + value.toFixed(0)
                 }
               }
             }

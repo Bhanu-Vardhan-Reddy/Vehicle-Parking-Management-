@@ -12,7 +12,7 @@ ADMIN_EMAIL = "nbhanuvardhanreddy@gmail.com"
 @celery.task(bind=True, name='tasks.send_daily_reminder')
 def send_daily_reminder(self):
     try:
-        self.update_state(state='PROGRESS', meta={'message': 'Starting daily reminder task'})
+        print("Starting daily reminder task")
         
         seven_days_ago = datetime.now() - timedelta(days=7)
         
@@ -75,14 +75,14 @@ Parking Management Team"""
             'emails': inactive_users
         }
     except Exception as e:
-        self.update_state(state='FAILURE', meta={'error': str(e)})
+        print(f"Daily reminder failed: {str(e)}")
         return {'status': 'error', 'message': str(e)}
 
 
 @celery.task(bind=True, name='tasks.send_monthly_report')
 def send_monthly_report(self):
     try:
-        self.update_state(state='PROGRESS', meta={'message': 'Starting monthly report generation'})
+        print("Starting monthly report generation")
         
         today = datetime.now()
         first_day_this_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -125,7 +125,7 @@ Here's your parking activity for {last_month_start.strftime('%B %Y')}:
 
 📈 Statistics:
 - Total Bookings: {total_bookings}
-- Total Spent: ₹{total_spent:.2f}
+- Total Spent: Rs.{total_spent:.2f}
 - Most Used Lot: {most_used_lot}
 
 Thank you for choosing our parking service!
@@ -141,7 +141,7 @@ Parking Management Team"""
                 <tr>
                     <td style="padding: 8px; border-bottom: 1px solid #ddd;">{lot.name}</td>
                     <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">#{spot.spot_number}</td>
-                    <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">₹{booking.total_cost:.2f}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">Rs.{booking.total_cost:.2f}</td>
                 </tr>
                 """
             
@@ -157,7 +157,7 @@ Parking Management Team"""
                         <h3 style="margin-top: 0; color: #198754;">📈 Statistics</h3>
                         <ul style="list-style: none; padding: 0;">
                             <li style="padding: 5px 0;">📋 <strong>Total Bookings:</strong> {total_bookings}</li>
-                            <li style="padding: 5px 0;">💰 <strong>Total Spent:</strong> ₹{total_spent:.2f}</li>
+                            <li style="padding: 5px 0;">💰 <strong>Total Spent:</strong> Rs.{total_spent:.2f}</li>
                             <li style="padding: 5px 0;">🅿️ <strong>Most Used Lot:</strong> {most_used_lot}</li>
                         </ul>
                     </div>
@@ -223,7 +223,7 @@ Month: {last_month_start.strftime('%B %Y')}
 
 SYSTEM STATISTICS:
 - Total Bookings: {total_system_bookings}
-- Total Revenue: ₹{total_revenue:.2f}
+- Total Revenue: Rs.{total_revenue:.2f}
 - Active Users: {total_users_active}
 - Reports Sent: {len(reports_sent)}
 - Most Popular Lot: {most_popular_lot}
@@ -255,7 +255,7 @@ Parking Management System"""
                                 </div>
                                 <div style="background-color: white; padding: 15px; border-left: 4px solid #198754; border-radius: 3px;">
                                     <p style="margin: 0; color: #6c757d; font-size: 14px;">Total Revenue</p>
-                                    <p style="margin: 5px 0 0 0; font-size: 28px; font-weight: bold; color: #198754;">₹{total_revenue:.2f}</p>
+                                    <p style="margin: 5px 0 0 0; font-size: 28px; font-weight: bold; color: #198754;">Rs.{total_revenue:.2f}</p>
                                 </div>
                                 <div style="background-color: white; padding: 15px; border-left: 4px solid #ffc107; border-radius: 3px;">
                                     <p style="margin: 0; color: #6c757d; font-size: 14px;">Active Users</p>
@@ -308,7 +308,7 @@ Parking Management System"""
             'emails': reports_sent
         }
     except Exception as e:
-        self.update_state(state='FAILURE', meta={'error': str(e)})
+        print(f"Monthly report failed: {str(e)}")
         return {'status': 'error', 'message': str(e)}
 
 
@@ -316,7 +316,7 @@ Parking Management System"""
 def export_user_bookings(self, user_id):
     try:
         user_id = int(user_id)
-        self.update_state(state='PROGRESS', meta={'message': f'Starting CSV generation for user {user_id}'})
+        print(f"Starting CSV generation for user {user_id}")
         
         user = User.query.get(user_id)
         if not user:
@@ -327,7 +327,7 @@ def export_user_bookings(self, user_id):
         output = StringIO()
         writer = csv.writer(output)
         
-        writer.writerow(['Booking ID', 'Parking Lot', 'Spot Number', 'Type', 'Start Time', 'End Time', 'Duration (hours)', 'Cost (₹)', 'Status'])
+        writer.writerow(['Booking ID', 'Parking Lot', 'Spot Number', 'Type', 'Start Time', 'End Time', 'Duration (hours)', 'Cost (Rs.)', 'Status'])
         
         for booking in bookings:
             spot = ParkingSpot.query.get(booking.spot_id)
@@ -356,7 +356,7 @@ def export_user_bookings(self, user_id):
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f"exports/bookings_{user.id}_{timestamp}.csv"
         
-        with open(filename, 'w', newline='') as f:
+        with open(filename, 'w', newline='', encoding='utf-8') as f:
             f.write(output.getvalue())
         
         subject = "📄 Your Booking History CSV is Ready!"
@@ -452,14 +452,14 @@ Parking Management Team"""
                 'email_error': str(email_error)
             }
     except Exception as e:
-        self.update_state(state='FAILURE', meta={'error': str(e)})
+        print(f"Export failed for user {user_id}: {str(e)}")
         return {'status': 'error', 'user_id': user_id, 'message': str(e)}
 
 
 @celery.task(bind=True, name='tasks.send_booking_confirmation')
 def send_booking_confirmation(self, booking_id):
     try:
-        self.update_state(state='PROGRESS', meta={'message': f'Sending booking confirmation for booking {booking_id}'})
+        print(f"Sending booking confirmation for booking {booking_id}")
         
         booking = Booking.query.get(booking_id)
         if not booking:
@@ -484,8 +484,8 @@ Your parking reservation has been confirmed!
 - Start Time: {booking.reserved_start.strftime('%Y-%m-%d %H:%M')}
 - End Time: {booking.reserved_end.strftime('%Y-%m-%d %H:%M')}
 - Duration: {duration_hours:.1f} hours
-- Total Cost: ₹{booking.total_cost:.2f}
-- Price Rate: ₹{lot.price_per_hour}/hour
+- Total Cost: Rs.{booking.total_cost:.2f}
+- Price Rate: Rs.{lot.price_per_hour}/hour
 
 ⚠️ Important: Please arrive on time for your reservation.
 
@@ -527,11 +527,11 @@ Parking Management Team"""
                             </tr>
                             <tr style="background-color: #e7f3ff;">
                                 <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Total Cost:</strong></td>
-                                <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #0d6efd; font-size: 18px;"><strong>₹{booking.total_cost:.2f}</strong></td>
+                                <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #0d6efd; font-size: 18px;"><strong>Rs.{booking.total_cost:.2f}</strong></td>
                             </tr>
                             <tr>
                                 <td style="padding: 8px;"><strong>Price Rate:</strong></td>
-                                <td style="padding: 8px;">₹{lot.price_per_hour}/hour</td>
+                                <td style="padding: 8px;">Rs.{lot.price_per_hour}/hour</td>
                             </tr>
                         </table>
                     </div>
@@ -559,7 +559,7 @@ Your parking spot has been confirmed!
 - Parking Lot: {lot.name}
 - Spot Number: #{spot.spot_number}
 - Start Time: {booking.start_time.strftime('%Y-%m-%d %H:%M')}
-- Price Rate: ₹{lot.price_per_hour}/hour
+- Price Rate: Rs.{lot.price_per_hour}/hour
 
 💡 Tip: Don't forget to release your spot when you leave to avoid extra charges.
 
@@ -593,7 +593,7 @@ Parking Management Team"""
                             </tr>
                             <tr>
                                 <td style="padding: 8px;"><strong>Price Rate:</strong></td>
-                                <td style="padding: 8px;">₹{lot.price_per_hour}/hour</td>
+                                <td style="padding: 8px;">Rs.{lot.price_per_hour}/hour</td>
                             </tr>
                         </table>
                     </div>
@@ -630,14 +630,14 @@ Parking Management Team"""
             }
             
     except Exception as e:
-        self.update_state(state='FAILURE', meta={'error': str(e)})
+        print(f"Booking confirmation failed: {str(e)}")
         return {'status': 'error', 'message': str(e)}
 
 
 @celery.task(bind=True, name='tasks.send_daily_admin_report')
 def send_daily_admin_report(self):
     try:
-        self.update_state(state='PROGRESS', meta={'message': 'Generating daily admin report'})
+        print("Generating daily admin report")
         
         admin_email = ADMIN_EMAIL
         
@@ -686,7 +686,7 @@ Date: {yesterday.strftime('%B %d, %Y')}
 - Total Bookings: {total_bookings}
   • Immediate: {immediate_bookings}
   • Reserved: {reserved_bookings}
-- Revenue Generated: ₹{revenue_yesterday:.2f}
+- Revenue Generated: Rs.{revenue_yesterday:.2f}
 - New Users: {new_users}
 
 🅿️ CURRENT STATUS:
@@ -737,7 +737,7 @@ Parking Management System
                         </div>
                         <div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #198754; border-radius: 3px;">
                             <p style="margin: 0; color: #6c757d; font-size: 14px;">Revenue Generated</p>
-                            <p style="margin: 5px 0 0 0; font-size: 24px; font-weight: bold; color: #198754;">₹{revenue_yesterday:.2f}
+                            <p style="margin: 5px 0 0 0; font-size: 24px; font-weight: bold; color: #198754;">Rs.{revenue_yesterday:.2f}
                             <p style="margin: 5px 0 0 0; font-size: 12px; color: #6c757d;">From {len(completed_yesterday)} completed bookings</p>
                         </div>
                     </div>
@@ -815,14 +815,14 @@ Parking Management System
             }
             
     except Exception as e:
-        self.update_state(state='FAILURE', meta={'error': str(e)})
+        print(f"Daily admin report failed: {str(e)}")
         return {'status': 'error', 'message': str(e)}
 
 
 @celery.task(bind=True, name='tasks.export_admin_all_data')
 def export_admin_all_data(self):
     try:
-        self.update_state(state='PROGRESS', meta={'message': 'Starting comprehensive data export'})
+        print("Starting comprehensive data export")
         
         admin_email = ADMIN_EMAIL
         
@@ -862,7 +862,7 @@ def export_admin_all_data(self):
         
         bookings_output = StringIO()
         bookings_writer = csv.writer(bookings_output)
-        bookings_writer.writerow(['Booking ID', 'User Email', 'Parking Lot', 'Spot Number', 'Type', 'Start Time', 'End Time', 'Reserved Start', 'Reserved End', 'Duration (hours)', 'Cost (₹)', 'Status'])
+        bookings_writer.writerow(['Booking ID', 'User Email', 'Parking Lot', 'Spot Number', 'Type', 'Start Time', 'End Time', 'Reserved Start', 'Reserved End', 'Duration (hours)', 'Cost (Rs.)', 'Status'])
         
         for booking in all_bookings:
             spot = ParkingSpot.query.get(booking.spot_id)
@@ -893,13 +893,13 @@ def export_admin_all_data(self):
         lots_filename = f"exports/admin/lots_{timestamp}.csv"
         bookings_filename = f"exports/admin/bookings_{timestamp}.csv"
         
-        with open(users_filename, 'w', newline='') as f:
+        with open(users_filename, 'w', newline='', encoding='utf-8') as f:
             f.write(users_output.getvalue())
         
-        with open(lots_filename, 'w', newline='') as f:
+        with open(lots_filename, 'w', newline='', encoding='utf-8') as f:
             f.write(lots_output.getvalue())
         
-        with open(bookings_filename, 'w', newline='') as f:
+        with open(bookings_filename, 'w', newline='', encoding='utf-8') as f:
             f.write(bookings_output.getvalue())
         
         total_revenue = db.session.query(func.sum(Booking.total_cost)).filter(Booking.status == 'Completed').scalar() or 0.0
@@ -920,7 +920,7 @@ SUMMARY STATISTICS:
 - Total Parking Lots: {total_lots}
 - Total Parking Spots: {total_spots_count}
 - Total Bookings: {total_bookings}
-- Total Revenue: ₹{total_revenue:.2f}
+- Total Revenue: Rs.{total_revenue:.2f}
 
 ATTACHED FILES:
 1. users_{timestamp}.csv - All user data
@@ -960,7 +960,7 @@ Parking Management System"""
                     </div>
                     <div style="margin-top: 15px; padding: 15px; background-color: #198754; color: white; border-radius: 3px; text-align: center;">
                         <p style="margin: 0; font-size: 14px;">Total Revenue Generated</p>
-                        <p style="margin: 5px 0 0 0; font-size: 32px; font-weight: bold;">₹{total_revenue:.2f}</p>
+                        <p style="margin: 5px 0 0 0; font-size: 32px; font-weight: bold;">Rs.{total_revenue:.2f}</p>
                     </div>
                 </div>
                 
@@ -1039,5 +1039,5 @@ Parking Management System"""
                 'email_error': str(email_error)
             }
     except Exception as e:
-        self.update_state(state='FAILURE', meta={'error': str(e)})
+        print(f"Admin export failed: {str(e)}")
         return {'status': 'error', 'message': str(e)}
