@@ -215,13 +215,22 @@
               <div class="card mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center">
                   <h5 class="m-0">{{ lot.name }}</h5>
-                  <button 
-                    class="btn btn-sm btn-danger" 
-                    @click="confirmDeleteLot(lot)"
-                    :disabled="loading"
-                  >
-                    Delete
-                  </button>
+                  <div>
+                    <button 
+                      class="btn btn-sm btn-warning me-1" 
+                      @click="openEditLot(lot)"
+                      :disabled="loading"
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      class="btn btn-sm btn-danger" 
+                      @click="confirmDeleteLot(lot)"
+                      :disabled="loading"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
                 <div class="card-body">
                   <p><strong>Capacity:</strong> {{ lot.capacity }} spots</p>
@@ -243,6 +252,73 @@
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit Lot Modal -->
+      <div v-if="editLot" class="card mb-4 border-warning">
+        <div class="card-header bg-warning d-flex justify-content-between align-items-center">
+          <h4 class="m-0">Edit Lot: {{ editLot.name }}</h4>
+          <button class="btn btn-secondary btn-sm" @click="editLot = null">
+            Cancel
+          </button>
+        </div>
+        <div class="card-body">
+          <form @submit.prevent="updateLot" class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label">Lot Name</label>
+              <input 
+                type="text" 
+                class="form-control" 
+                v-model="editLot.name" 
+                required
+              >
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Capacity (spots)</label>
+              <input 
+                type="number" 
+                class="form-control" 
+                v-model="editLot.capacity" 
+                min="1" 
+                required
+              >
+              <small class="text-muted">
+                Current: {{ editLot.originalCapacity }} | 
+                <span v-if="editLot.capacity > editLot.originalCapacity" class="text-success">
+                  +{{ editLot.capacity - editLot.originalCapacity }} spots
+                </span>
+                <span v-else-if="editLot.capacity < editLot.originalCapacity" class="text-danger">
+                  -{{ editLot.originalCapacity - editLot.capacity }} spots
+                </span>
+                <span v-else class="text-secondary">No change</span>
+              </small>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Price (Rs./hour)</label>
+              <input 
+                type="number" 
+                class="form-control" 
+                v-model="editLot.price_per_hour" 
+                min="0" 
+                step="0.01"
+                required
+              >
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+              <button 
+                type="submit" 
+                class="btn btn-success w-100"
+                :disabled="loading"
+              >
+                {{ loading ? 'Saving...' : 'Save Changes' }}
+              </button>
+            </div>
+          </form>
+          <div v-if="editLot.capacity < editLot.originalCapacity && editLot.occupied_spots > 0" class="alert alert-warning mt-3">
+            <strong>Warning:</strong> This lot has {{ editLot.occupied_spots }} occupied spot(s). 
+            You cannot reduce capacity below the number of occupied spots.
           </div>
         </div>
       </div>
@@ -444,6 +520,7 @@ export default {
         capacity: '',
         price_per_hour: ''
       },
+      editLot: null,
       
       error: null,
       success: null,
@@ -621,6 +698,42 @@ export default {
         
       } catch (err) {
         this.error = err.response?.data?.message || 'Failed to delete lot'
+      } finally {
+        this.loading = false
+      }
+    },
+    
+    openEditLot(lot) {
+      this.editLot = {
+        id: lot.id,
+        name: lot.name,
+        capacity: lot.capacity,
+        price_per_hour: lot.price_per_hour,
+        originalCapacity: lot.capacity,
+        occupied_spots: lot.occupied_spots
+      }
+    },
+    
+    async updateLot() {
+      this.error = null
+      this.success = null
+      this.loading = true
+      
+      try {
+        const response = await axios.put(`/api/lots/${this.editLot.id}`, {
+          name: this.editLot.name,
+          capacity: parseInt(this.editLot.capacity),
+          price_per_hour: parseFloat(this.editLot.price_per_hour)
+        }, {
+          headers: { Authorization: `Bearer ${this.token}` }
+        })
+        
+        this.success = response.data.message
+        this.editLot = null
+        await this.fetchLots()
+        
+      } catch (err) {
+        this.error = err.response?.data?.message || 'Failed to update lot'
       } finally {
         this.loading = false
       }

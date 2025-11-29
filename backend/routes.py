@@ -206,6 +206,81 @@ def create_lot(current_user):
         'lot': {'id': new_lot.id, 'name': new_lot.name, 'capacity': new_lot.capacity, 'price_per_hour': new_lot.price_per_hour}
     }), 201
 
+@api_bp.route('/api/lots/<int:lot_id>', methods=['PUT'])
+@token_required
+@admin_required
+def update_lot(current_user, lot_id):
+    from models import ParkingLot, ParkingSpot
+    
+    lot = ParkingLot.query.get(lot_id)
+    if not lot:
+        return jsonify({'message': 'Parking lot not found', 'error': 'not_found'}), 404
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'message': 'No data provided', 'error': 'validation_error'}), 400
+    
+    if data.get('name'):
+        lot.name = data['name']
+    
+    if data.get('price_per_hour') is not None:
+        try:
+            price = float(data['price_per_hour'])
+            if price < 0:
+                return jsonify({'message': 'Price must be non-negative', 'error': 'validation_error'}), 400
+            lot.price_per_hour = price
+        except ValueError:
+            return jsonify({'message': 'Invalid price format', 'error': 'validation_error'}), 400
+    
+    if data.get('capacity') is not None:
+        try:
+            new_capacity = int(data['capacity'])
+            if new_capacity < 1:
+                return jsonify({'message': 'Capacity must be at least 1', 'error': 'validation_error'}), 400
+            
+            current_capacity = lot.capacity
+            
+            if new_capacity > current_capacity:
+                for i in range(current_capacity + 1, new_capacity + 1):
+                    spot = ParkingSpot(spot_number=i, status='Available', lot_id=lot.id)
+                    db.session.add(spot)
+            
+            elif new_capacity < current_capacity:
+                spots_to_remove = ParkingSpot.query.filter_by(lot_id=lot.id)\
+                    .order_by(ParkingSpot.spot_number.desc())\
+                    .limit(current_capacity - new_capacity).all()
+                
+                for spot in spots_to_remove:
+                    if spot.status == 'Occupied':
+                        return jsonify({
+                            'message': f'Cannot reduce capacity: Spot #{spot.spot_number} is occupied',
+                            'error': 'spot_occupied'
+                        }), 400
+                
+                for spot in spots_to_remove:
+                    db.session.delete(spot)
+            
+            lot.capacity = new_capacity
+            
+        except ValueError:
+            return jsonify({'message': 'Invalid capacity format', 'error': 'validation_error'}), 400
+    
+    db.session.commit()
+    
+    if cache:
+        cache.delete('all_lots')
+        cache.delete(f'spots_lot_{lot_id}')
+    
+    return jsonify({
+        'message': 'Parking lot updated successfully',
+        'lot': {
+            'id': lot.id,
+            'name': lot.name,
+            'capacity': lot.capacity,
+            'price_per_hour': lot.price_per_hour
+        }
+    }), 200
+
 @api_bp.route('/api/lots/<int:lot_id>', methods=['DELETE'])
 @token_required
 @admin_required
